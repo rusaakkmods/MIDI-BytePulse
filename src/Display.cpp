@@ -25,6 +25,7 @@ Display::Display()
     , _lastVolumeValue(255)
     , _lastCutoffValue(255)
     , _lastResonanceValue(255)
+    , _lastPanValue(64)
     , _wasStopped(true) {
     strcpy(_lastControlLabel, "---");
 }
@@ -199,6 +200,7 @@ void Display::renderMain() {
         #if TEST_MODE
         // Test mode: Display volume, cutoff, and resonance values (128x32 display)
         _display.setFont(u8g2_font_8x13_tf);
+        
         if (_controls) {
             // Get current MIDI values
             uint8_t volumeVal = _controls->getVolumeValue();
@@ -218,6 +220,7 @@ void Display::renderMain() {
                 _lastResonanceValue = resonanceVal;
                 strcpy(_lastControlLabel, "RES");
             }
+            // Pan is updated directly from testModeLoop
             
             // Display the last changed control
             if (strcmp(_lastControlLabel, "VOL") == 0) {
@@ -226,6 +229,8 @@ void Display::renderMain() {
                 snprintf(buf, sizeof(buf), "CUT:%d", _lastCutoffValue);
             } else if (strcmp(_lastControlLabel, "RES") == 0) {
                 snprintf(buf, sizeof(buf), "RES:%d", _lastResonanceValue);
+            } else if (strcmp(_lastControlLabel, "PAN") == 0) {
+                snprintf(buf, sizeof(buf), "PAN:%d", _lastPanValue);
             } else {
                 snprintf(buf, sizeof(buf), "---");
             }

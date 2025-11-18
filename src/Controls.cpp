@@ -59,7 +59,6 @@ void Controls::begin() {
 
 void Controls::update() {
     updateButtons();
-    updateEncoder();
     updatePots();
 }
 
@@ -69,19 +68,6 @@ void Controls::updateButtons() {
     _playPressed = debounceButton(BTN_PLAY_PIN, _playLastState, _playLastDebounceTime);
     _stopPressed = debounceButton(BTN_STOP_PIN, _stopLastState, _stopLastDebounceTime);
     _encoderPressed = debounceButton(ENCODER_BTN_PIN, _encoderLastState, _encoderLastDebounceTime);
-}
-
-void Controls::updateEncoder() {
-    // Encoder library handles state internally
-    // We just track position changes
-    long newPosition = _encoder.read();
-    
-    // Normalize to steps of 4 (typical encoder resolution)
-    newPosition /= 4;
-    
-    if (newPosition != _lastEncoderPosition) {
-        _lastEncoderPosition = newPosition;
-    }
 }
 
 void Controls::updatePots() {
@@ -125,9 +111,15 @@ void Controls::updatePots() {
 }
 
 int8_t Controls::getEncoderDelta() {
-    long newPosition = _encoder.read() / 4;
+    long newPosition = _encoder.read() / 4;  // Divide by 4: 4 pulses = 1 detent click
     int8_t delta = (int8_t)(newPosition - _lastEncoderPosition);
     _lastEncoderPosition = newPosition;
+    
+    if (delta != 0) {
+        DEBUG_PRINT("Encoder delta: ");
+        DEBUG_PRINTLN(delta);
+    }
+    
     return delta;
 }
 

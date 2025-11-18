@@ -41,7 +41,7 @@ private:
     // MIDI handler reference
     MidiHandler* _midiHandler;
     
-    // Encoder
+    // Encoder - using standard library
     Encoder _encoder;
     long _lastEncoderPosition;
     

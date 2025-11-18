@@ -14,6 +14,7 @@
 
 #define ENABLE_DISPLAY      1    // Set to 0 to disable OLED display (saves flash)
 #define TEST_MODE           1    // Set to 1 to enable test mode (display only)
+#define SERIAL_DEBUG        false // Disable serial debug to prevent encoder noise on Pin 1 (TX0)
 
 // ============================================================================
 // PIN DEFINITIONS (Pro Micro - SparkFun Pin Numbers)
@@ -31,9 +32,9 @@
 #define POT_CUTOFF_PIN     A1   // Pin 19 (A1) - Filter cutoff control (MIDI CC74)
 #define POT_RESONANCE_PIN  A2   // Pin 20 (A2) - Resonance control (MIDI CC71)
 
-// Rotary Encoder
-#define ENCODER_A_PIN       6   // Pin 6 - Encoder phase A
-#define ENCODER_B_PIN       7   // Pin 7 - Encoder phase B
+// Rotary Encoder (both pins support hardware interrupts)
+#define ENCODER_A_PIN       1   // Pin 1 (INT3) - Encoder phase A 
+#define ENCODER_B_PIN       7   // Pin 7 (INT6) - Encoder phase B
 #define ENCODER_BTN_PIN     8   // Pin 8 - Encoder push button
 
 // Buttons
@@ -75,6 +76,7 @@ enum ClockSource {
 #define CC_VOLUME          7      // Volume pot → CC7 (Main Volume)
 #define CC_CUTOFF          74     // Cutoff pot → CC74 (Brightness)
 #define CC_RESONANCE       71     // Resonance pot → CC71 (Resonance)
+#define CC_PAN             10     // Encoder → CC10 (Pan)
 
 // ============================================================================
 // CLOCK SYNC CONFIGURATION
@@ -140,7 +142,6 @@ enum ClockSource {
 // SYSTEM CONFIGURATION
 // ============================================================================
 
-#define SERIAL_DEBUG       false  // Enable/disable debug output on Serial
 #define DEBUG_BAUD_RATE    115200 // Debug serial baud rate
 
 #if SERIAL_DEBUG

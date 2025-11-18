@@ -91,8 +91,34 @@ void testModeLoop() {
   static bool isPlaying = false;  // false = stopped/paused, true = playing
   static bool wasStopped = true;  // true = stopped (not just paused)
   
+  // Pan control via encoder (0-127, center at 64)
+  static uint8_t panValue = 64;  // Start at center
+  
   // Update controls
   controls.update();
+  
+  // Handle encoder for pan control (CC10)
+  int8_t encoderDelta = controls.getEncoderDelta();
+  if (encoderDelta != 0) {
+    DEBUG_PRINT("Encoder delta: ");
+    DEBUG_PRINTLN(encoderDelta);
+    
+    int16_t newPan = panValue + encoderDelta;
+    
+    // Constrain to 0-127 range
+    if (newPan < 0) newPan = 0;
+    if (newPan > 127) newPan = 127;
+    
+    panValue = (uint8_t)newPan;
+    midiHandler.sendCC(CC_PAN, panValue);
+    
+    DEBUG_PRINT("Pan value: ");
+    DEBUG_PRINTLN(panValue);
+    
+    // Update display pan value
+    display._lastPanValue = panValue;
+    strcpy(display._lastControlLabel, "PAN");
+  }
   
   // Read button states
   bool playPressed = controls.playPressed();

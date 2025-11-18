@@ -38,7 +38,7 @@ public:
     // Control Change (sends to both USB and DIN if available)
     void sendCC(uint8_t cc, uint8_t value, uint8_t channel = MIDI_CHANNEL);
     
-    // Clock info
+    // Clock info (calculated from incoming MIDI clock)
     uint16_t getBPM() const { return _bpm; }
     uint32_t getClockCount() const { return _clockCount; }
     
