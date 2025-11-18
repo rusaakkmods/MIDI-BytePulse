@@ -13,7 +13,9 @@
 #include "MidiHandler.h"
 #include "ClockSync.h"
 #include "Controls.h"
+#if ENABLE_DISPLAY
 #include "Display.h"
+#endif
 #include "Settings.h"
 
 // ============================================================================
@@ -23,7 +25,9 @@
 MidiHandler midiHandler;
 ClockSync clockSync;
 Controls controls;
+#if ENABLE_DISPLAY
 Display display;
+#endif
 Settings settings;
 
 // ============================================================================
@@ -41,6 +45,7 @@ void setup() {
   // Initialize settings from EEPROM
   settings.begin();
   
+  #if !TEST_MODE
   // Initialize clock sync module
   clockSync.begin();
   clockSync.setPPQN(settings.getPPQN());
@@ -53,12 +58,20 @@ void setup() {
   // Initialize controls and link with MIDI handler
   controls.begin();
   controls.setMidiHandler(&midiHandler);
+  #else
+  // Test mode: Initialize MIDI handler (for CC messages) and controls
+  midiHandler.begin();
+  controls.begin();
+  controls.setMidiHandler(&midiHandler);
+  #endif
   
+  #if ENABLE_DISPLAY
   // Initialize display and link with other modules
   display.begin();
   display.setMidiHandler(&midiHandler);
   display.setClockSync(&clockSync);
   display.setControls(&controls);
+  #endif
   
   DEBUG_PRINTLN("System initialized");
   DEBUG_PRINT("Clock source: ");
@@ -71,11 +84,22 @@ void setup() {
 // ============================================================================
 
 void loop() {
+  #if TEST_MODE
+  // Test mode: Update controls and display
+  controls.update();
+  #if ENABLE_DISPLAY
+  display.update();
+  #endif
+  return;
+  #endif
+  
   // Update all modules
   midiHandler.update();  // Handles both USB and DIN MIDI
   clockSync.update();
   controls.update();
+  #if ENABLE_DISPLAY
   display.update();
+  #endif
   
   // Handle transport buttons
   static bool playWasPressed = false;
@@ -108,6 +132,7 @@ void loop() {
   static bool functionWasPressed = false;
   bool functionPressed = controls.functionPressed();
   
+  #if ENABLE_DISPLAY
   if (functionPressed && !functionWasPressed) {
     if (display.isInMenu()) {
       display.exitMenu();
@@ -115,18 +140,22 @@ void loop() {
       display.enterMenu();
     }
   }
+  #endif
   functionWasPressed = functionPressed;
   
   // Handle encoder input
+  #if ENABLE_DISPLAY
   int8_t encoderDelta = controls.getEncoderDelta();
   if (encoderDelta != 0 && display.isInMenu()) {
     display.handleEncoderDelta(encoderDelta);
   }
+  #endif
   
   // Handle encoder button press
   static bool encoderWasPressed = false;
   bool encoderPressed = controls.encoderPressed();
   
+  #if ENABLE_DISPLAY
   if (encoderPressed && !encoderWasPressed) {
     if (display.isInMenu()) {
       display.handleEncoderPress();
@@ -150,5 +179,6 @@ void loop() {
       }
     }
   }
+  #endif
   encoderWasPressed = encoderPressed;
 }

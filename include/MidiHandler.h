@@ -14,6 +14,9 @@
 // Forward declarations
 class ClockSync;
 
+// External DIN MIDI instance (defined in MidiHandler.cpp)
+extern midi::MidiInterface<midi::SerialMIDI<HardwareSerial>> midiDIN;
+
 class MidiHandler {
 public:
     MidiHandler();
@@ -43,9 +46,6 @@ public:
     void setClockSync(ClockSync* clockSync) { _clockSync = clockSync; }
     
 private:
-    // MIDI instances
-    MIDI_CREATE_INSTANCE(HardwareSerial, Serial1, midiDIN);  // DIN MIDI
-    
     // Clock source management
     ClockSource _clockSource;        // User-configured source
     ClockSource _activeClockSource;  // Currently active source

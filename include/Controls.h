@@ -71,6 +71,11 @@ private:
     uint16_t _cutoffRaw;
     uint16_t _resonanceRaw;
     
+    // EMA smoothing (accumulated smoothed values)
+    float _volumeSmooth;
+    float _cutoffSmooth;
+    float _resonanceSmooth;
+    
     unsigned long _lastPotReadTime;
     
     // Methods
@@ -80,7 +85,8 @@ private:
     
     bool debounceButton(uint8_t pin, bool& lastState, unsigned long& lastDebounceTime);
     uint8_t mapAdcToMidi(uint16_t adcValue);
-    bool potValueChanged(uint16_t newRaw, uint16_t& oldRaw, uint8_t& midiValue);
+    bool potValueChanged(uint16_t newRaw, uint16_t& oldRaw, uint8_t& midiValue, float& smoothValue);
+    uint16_t oversampleAnalogRead(uint8_t pin);
 };
 
 #endif // CONTROLS_H

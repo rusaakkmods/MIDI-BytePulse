@@ -9,6 +9,13 @@
 #include <Arduino.h>
 
 // ============================================================================
+// FEATURE FLAGS
+// ============================================================================
+
+#define ENABLE_DISPLAY      1    // Set to 0 to disable OLED display (saves flash)
+#define TEST_MODE           1    // Set to 1 to enable test mode (display only)
+
+// ============================================================================
 // PIN DEFINITIONS (Pro Micro - SparkFun Pin Numbers)
 // ============================================================================
 
@@ -88,7 +95,11 @@ enum ClockSource {
 #define ADC_RESOLUTION     10     // 10-bit ADC (0-1023)
 #define ADC_MAX_VALUE      1023   // Maximum ADC reading
 #define MIDI_MAX_VALUE     127    // Maximum MIDI value (7-bit)
-#define ADC_DEADZONE       3      // Noise threshold for pot changes
+#define ADC_DEADZONE       4      // Noise threshold for pot changes (smaller for better response)
+#define ADC_EMA_ALPHA      0.10f  // EMA smoothing factor (0.0-1.0, lower = smoother)
+#define ADC_MIN_THRESHOLD  10     // Minimum ADC value to map to MIDI 0
+#define ADC_MAX_THRESHOLD  1013   // Maximum ADC value to map to MIDI 127
+#define ADC_OVERSAMPLE     9      // Number of readings for median filter (use odd number)
 
 // Debounce Settings
 #define BUTTON_DEBOUNCE_MS 20     // Button debounce time (milliseconds)

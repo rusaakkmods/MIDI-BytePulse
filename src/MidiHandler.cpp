@@ -6,6 +6,9 @@
 #include "MidiHandler.h"
 #include "ClockSync.h"
 
+// Create DIN MIDI instance
+MIDI_CREATE_INSTANCE(HardwareSerial, Serial1, midiDIN);
+
 // Initialize static instance pointer
 MidiHandler* MidiHandler::_instance = nullptr;
 
@@ -24,21 +27,18 @@ MidiHandler::MidiHandler()
 }
 
 void MidiHandler::begin() {
-    // Initialize DIN MIDI on Serial1 (hardware UART)
     Serial1.begin(MIDI_BAUD_RATE);
     midiDIN.begin(MIDI_CHANNEL_OMNI);
     
-    // Set up DIN MIDI callbacks for clock and transport
     midiDIN.setHandleClock(handleDINClock);
     midiDIN.setHandleStart(handleDINStart);
     midiDIN.setHandleContinue(handleDINContinue);
     midiDIN.setHandleStop(handleDINStop);
     midiDIN.setHandleSystemReset(handleDINSystemReset);
     
-    // Turn off automatic THRU (we handle forwarding manually)
     midiDIN.turnThruOff();
     
-    DEBUG_PRINTLN("MIDI Handler initialized (USB + DIN)");
+    DEBUG_PRINTLN("MIDI OK");
 }
 
 void MidiHandler::update() {
@@ -54,39 +54,35 @@ void MidiHandler::update() {
 
 void MidiHandler::setClockSource(ClockSource source) {
     _clockSource = source;
-    DEBUG_PRINT("Clock source set to: ");
-    DEBUG_PRINTLN(source == CLOCK_AUTO ? "AUTO" : (source == CLOCK_FORCE_USB ? "FORCE_USB" : "FORCE_DIN"));
+    DEBUG_PRINTLN("Clk src");
 }
 
 void MidiHandler::sendStart() {
-    // Send to both USB and DIN
-    MidiUSB.sendMIDI({0x0F, 0xFA, 0, 0});  // Start
+    MidiUSB.sendMIDI({0x0F, 0xFA, 0, 0});
     MidiUSB.flush();
     midiDIN.sendRealTime(midi::Start);
     
     _isPlaying = true;
     _clockCount = 0;
-    DEBUG_PRINTLN("MIDI Start sent (USB + DIN)");
+    DEBUG_PRINTLN("Start");
 }
 
 void MidiHandler::sendContinue() {
-    // Send to both USB and DIN
-    MidiUSB.sendMIDI({0x0F, 0xFB, 0, 0});  // Continue
+    MidiUSB.sendMIDI({0x0F, 0xFB, 0, 0});
     MidiUSB.flush();
     midiDIN.sendRealTime(midi::Continue);
     
     _isPlaying = true;
-    DEBUG_PRINTLN("MIDI Continue sent (USB + DIN)");
+    DEBUG_PRINTLN("Cont");
 }
 
 void MidiHandler::sendStop() {
-    // Send to both USB and DIN
-    MidiUSB.sendMIDI({0x0F, 0xFC, 0, 0});  // Stop
+    MidiUSB.sendMIDI({0x0F, 0xFC, 0, 0});
     MidiUSB.flush();
     midiDIN.sendRealTime(midi::Stop);
     
     _isPlaying = false;
-    DEBUG_PRINTLN("MIDI Stop sent (USB + DIN)");
+    DEBUG_PRINTLN("Stop");
 }
 
 void MidiHandler::sendCC(uint8_t cc, uint8_t value, uint8_t channel) {
@@ -166,7 +162,7 @@ void MidiHandler::processUSBMidiEvent(midiEventPacket_t event) {
                 if (_clockSync) {
                     _clockSync->onTransportStart();
                 }
-                DEBUG_PRINTLN("USB MIDI Start received");
+                DEBUG_PRINTLN("USB Start");
             }
             break;
             
@@ -179,7 +175,7 @@ void MidiHandler::processUSBMidiEvent(midiEventPacket_t event) {
                 if (_clockSync) {
                     _clockSync->onTransportContinue();
                 }
-                DEBUG_PRINTLN("USB MIDI Continue received");
+                DEBUG_PRINTLN("USB Cont");
             }
             break;
             
@@ -192,7 +188,7 @@ void MidiHandler::processUSBMidiEvent(midiEventPacket_t event) {
                 if (_clockSync) {
                     _clockSync->onTransportStop();
                 }
-                DEBUG_PRINTLN("USB MIDI Stop received");
+                DEBUG_PRINTLN("USB Stop");
             }
             break;
             
@@ -246,7 +242,7 @@ void MidiHandler::handleDINStart() {
             _instance->_clockSync->onTransportStart();
         }
         
-        DEBUG_PRINTLN("DIN MIDI Start received");
+        DEBUG_PRINTLN("DIN Start");
     }
 }
 
@@ -265,7 +261,7 @@ void MidiHandler::handleDINContinue() {
             _instance->_clockSync->onTransportContinue();
         }
         
-        DEBUG_PRINTLN("DIN MIDI Continue received");
+        DEBUG_PRINTLN("DIN Cont");
     }
 }
 
@@ -284,7 +280,7 @@ void MidiHandler::handleDINStop() {
             _instance->_clockSync->onTransportStop();
         }
         
-        DEBUG_PRINTLN("DIN MIDI Stop received");
+        DEBUG_PRINTLN("DIN Stop");
     }
 }
 
@@ -300,7 +296,7 @@ void MidiHandler::handleDINSystemReset() {
         _instance->_clockSync->reset();
     }
     
-    DEBUG_PRINTLN("DIN MIDI System Reset received");
+    DEBUG_PRINTLN("Reset");
 }
 
 // ============================================================================
@@ -319,19 +315,18 @@ void MidiHandler::updateActiveClockSource() {
             
         case CLOCK_AUTO:
         default:
-            // Auto mode: USB has priority, fallback to DIN
             if (isUSBClockActive()) {
                 if (_activeClockSource != CLOCK_FORCE_USB) {
                     _activeClockSource = CLOCK_FORCE_USB;
-                    DEBUG_PRINTLN("AUTO: Switched to USB clock");
+                    DEBUG_PRINTLN("->USB");
                 }
             } else if (isDINClockActive()) {
                 if (_activeClockSource != CLOCK_FORCE_DIN) {
                     _activeClockSource = CLOCK_FORCE_DIN;
-                    DEBUG_PRINTLN("AUTO: Switched to DIN clock");
+                    DEBUG_PRINTLN("->DIN");
                 }
             } else {
-                _activeClockSource = CLOCK_AUTO;  // No active clock
+                _activeClockSource = CLOCK_AUTO;
             }
             break;
     }

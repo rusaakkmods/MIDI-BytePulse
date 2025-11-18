@@ -27,6 +27,9 @@ Controls::Controls()
     , _volumeRaw(0)
     , _cutoffRaw(0)
     , _resonanceRaw(0)
+    , _volumeSmooth(0.0f)
+    , _cutoffSmooth(0.0f)
+    , _resonanceSmooth(0.0f)
     , _lastPotReadTime(0) {
 }
 
@@ -90,13 +93,13 @@ void Controls::updatePots() {
     }
     _lastPotReadTime = now;
     
-    // Read all pots
-    uint16_t volumeRaw = analogRead(POT_VOLUME_PIN);
-    uint16_t cutoffRaw = analogRead(POT_CUTOFF_PIN);
-    uint16_t resonanceRaw = analogRead(POT_RESONANCE_PIN);
+    // Read all pots with oversampling for noise reduction
+    uint16_t volumeRaw = oversampleAnalogRead(POT_VOLUME_PIN);
+    uint16_t cutoffRaw = oversampleAnalogRead(POT_CUTOFF_PIN);
+    uint16_t resonanceRaw = oversampleAnalogRead(POT_RESONANCE_PIN);
     
     // Check for changes and send MIDI CC if changed
-    if (potValueChanged(volumeRaw, _volumeRaw, _volumeValue)) {
+    if (potValueChanged(volumeRaw, _volumeRaw, _volumeValue, _volumeSmooth)) {
         if (_midiHandler) {
             _midiHandler->sendCC(CC_VOLUME, _volumeValue);
             DEBUG_PRINT("Volume: ");
@@ -104,7 +107,7 @@ void Controls::updatePots() {
         }
     }
     
-    if (potValueChanged(cutoffRaw, _cutoffRaw, _cutoffValue)) {
+    if (potValueChanged(cutoffRaw, _cutoffRaw, _cutoffValue, _cutoffSmooth)) {
         if (_midiHandler) {
             _midiHandler->sendCC(CC_CUTOFF, _cutoffValue);
             DEBUG_PRINT("Cutoff: ");
@@ -112,7 +115,7 @@ void Controls::updatePots() {
         }
     }
     
-    if (potValueChanged(resonanceRaw, _resonanceRaw, _resonanceValue)) {
+    if (potValueChanged(resonanceRaw, _resonanceRaw, _resonanceValue, _resonanceSmooth)) {
         if (_midiHandler) {
             _midiHandler->sendCC(CC_RESONANCE, _resonanceValue);
             DEBUG_PRINT("Resonance: ");
@@ -148,23 +151,66 @@ bool Controls::debounceButton(uint8_t pin, bool& lastState, unsigned long& lastD
 }
 
 uint8_t Controls::mapAdcToMidi(uint16_t adcValue) {
-    // Map 10-bit ADC (0-1023) to 7-bit MIDI (0-127)
-    return (uint8_t)((adcValue * MIDI_MAX_VALUE) / ADC_MAX_VALUE);
+    // Apply calibrated min/max thresholds to ensure full 0-127 range
+    // Constrain input to usable range
+    if (adcValue <= ADC_MIN_THRESHOLD) {
+        return 0;
+    }
+    if (adcValue >= ADC_MAX_THRESHOLD) {
+        return 127;
+    }
+    
+    // Map calibrated range to MIDI (0-127)
+    // Scale from (ADC_MIN_THRESHOLD to ADC_MAX_THRESHOLD) -> (0 to 127)
+    uint16_t scaledValue = adcValue - ADC_MIN_THRESHOLD;
+    uint16_t scaledRange = ADC_MAX_THRESHOLD - ADC_MIN_THRESHOLD;
+    
+    // Use 32-bit math to avoid overflow
+    uint8_t midiValue = (uint8_t)(((uint32_t)scaledValue * 127UL) / scaledRange);
+    
+    // Safety constrain
+    return constrain(midiValue, 0, 127);
 }
 
-bool Controls::potValueChanged(uint16_t newRaw, uint16_t& oldRaw, uint8_t& midiValue) {
-    // Check if raw value changed beyond deadzone
-    int16_t diff = abs((int16_t)newRaw - (int16_t)oldRaw);
+uint16_t Controls::oversampleAnalogRead(uint8_t pin) {
+    // Take multiple readings and use median filter for noise rejection
+    // Median filter removes outliers better than averaging
+    uint16_t readings[ADC_OVERSAMPLE];
     
-    if (diff > ADC_DEADZONE) {
-        oldRaw = newRaw;
-        uint8_t newMidiValue = mapAdcToMidi(newRaw);
-        
-        // Only report change if MIDI value actually changed
-        if (newMidiValue != midiValue) {
-            midiValue = newMidiValue;
-            return true;
+    // Collect readings
+    for (uint8_t i = 0; i < ADC_OVERSAMPLE; i++) {
+        readings[i] = analogRead(pin);
+    }
+    
+    // Simple bubble sort for median
+    for (uint8_t i = 0; i < ADC_OVERSAMPLE - 1; i++) {
+        for (uint8_t j = 0; j < ADC_OVERSAMPLE - i - 1; j++) {
+            if (readings[j] > readings[j + 1]) {
+                uint16_t temp = readings[j];
+                readings[j] = readings[j + 1];
+                readings[j + 1] = temp;
+            }
         }
+    }
+    
+    // Return median value (middle of sorted array)
+    return readings[ADC_OVERSAMPLE / 2];
+}
+
+bool Controls::potValueChanged(uint16_t newRaw, uint16_t& oldRaw, uint8_t& midiValue, float& smoothValue) {
+    // Direct conversion - no smoothing for immediate response
+    // Hardware filtering (capacitor on pot wiper) recommended for best results
+    
+    // Convert raw ADC to MIDI value
+    uint8_t newMidiValue = mapAdcToMidi(newRaw);
+    
+    // Only report change if MIDI value changed by at least 3 points
+    int8_t midiDiff = abs((int8_t)newMidiValue - (int8_t)midiValue);
+    
+    if (midiDiff >= 3) {
+        oldRaw = newRaw;
+        midiValue = newMidiValue;
+        return true;
     }
     
     return false;
