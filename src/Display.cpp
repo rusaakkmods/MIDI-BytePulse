@@ -299,6 +299,12 @@ void Display::renderMain() {
         } else {
             _display.drawCircle(120, 7, 3);
         }
+        
+        // Line 2: BPM display
+        if (_midiHandler) {
+            snprintf(buf, sizeof(buf), "BPM:%d", _midiHandler->getBPM());
+            _display.drawStr(0, 22, buf);
+        }
     #endif
     
     // Send only the changed regions to display (framebuffer mode)

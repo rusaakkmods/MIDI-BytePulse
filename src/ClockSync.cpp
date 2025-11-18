@@ -68,14 +68,12 @@ void ClockSync::onMidiClock() {
     if (_midiClockCounter >= _clockDivider) {
         _midiClockCounter = 0;
         
-        // Only generate pulse if cable is inserted
-        if (_cableInserted) {
-            setPulseHigh();
-            _pulseCount++;
-        }
+        // Generate pulse (cable detection ignored for now)
+        setPulseHigh();
+        _pulseCount++;
     }
     
-    // Handle beat LED (trigger on every quarter note = 24 MIDI clocks)
+    // Pulse beat LED every quarter note (24 MIDI clocks)
     _beatClockCounter++;
     if (_beatClockCounter >= MIDI_CLOCKS_PER_QN) {
         _beatClockCounter = 0;

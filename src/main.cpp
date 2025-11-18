@@ -246,23 +246,36 @@ void loop() {
   // Call MIDI update again to catch any messages that arrived during other processing
   midiHandler.update();
   
-  // Play/Pause button (toggle behavior)
+  // Track transport state locally for button logic
+  static bool localIsPlaying = false;
+  static bool wasStopped = true;  // true = stopped (position reset), false = paused
+  
+  // Play/Pause button - toggle play/pause, send Start or Continue
   if (playPressed && !playWasPressed) {
-    if (midiHandler.isPlaying()) {
+    if (localIsPlaying) {
+      // Currently playing - pause it
       midiHandler.sendStop();
+      localIsPlaying = false;
+      wasStopped = false;  // We're paused, not fully stopped
     } else {
-      if (midiHandler.getClockCount() == 0) {
+      // Currently paused or stopped
+      if (wasStopped) {
+        // Was stopped - send Start (from beginning)
         midiHandler.sendStart();
       } else {
+        // Was paused - send Continue (resume)
         midiHandler.sendContinue();
       }
+      localIsPlaying = true;
     }
   }
   playWasPressed = playPressed;
   
-  // Stop button
+  // Stop button - full stop with position reset
   if (stopPressed && !stopWasPressed) {
     midiHandler.sendStop();
+    localIsPlaying = false;
+    wasStopped = true;  // Full stop, reset position
   }
   stopWasPressed = stopPressed;
   

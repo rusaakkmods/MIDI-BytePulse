@@ -20,6 +20,9 @@ MidiHandler::MidiHandler()
     , _isPlaying(false)
     , _bpm(120)
     , _clockCount(0)
+    , _lastMidiStatus(0)
+    , _lastMidiData1(0)
+    , _lastMidiData2(0)
     , _clockSync(nullptr)
     , _lastClockTime(0)
     , _clocksSinceLastBeat(0) {
@@ -213,14 +216,18 @@ void MidiHandler::sendNoteOff(uint8_t note, uint8_t velocity, uint8_t channel) {
 
 void MidiHandler::updateBPM() {
     unsigned long now = millis();
-    if (_lastClockTime > 0 && _clocksSinceLastBeat >= MIDI_CLOCKS_PER_QN) {
-        unsigned long elapsed = now - _lastClockTime;
-        if (elapsed > 0) {
-            // Calculate BPM: (clocks / elapsed_ms) * ms_per_min / clocks_per_beat
-            _bpm = (uint16_t)((60000.0 * MIDI_CLOCKS_PER_QN) / elapsed);
-            _clocksSinceLastBeat = 0;
-            _lastClockTime = now;
+    
+    // Only calculate BPM after receiving a full quarter note (24 clocks)
+    if (_clocksSinceLastBeat >= MIDI_CLOCKS_PER_QN) {
+        if (_lastClockTime > 0) {
+            unsigned long elapsed = now - _lastClockTime;
+            if (elapsed > 0) {
+                // Calculate BPM: 60000 ms/min / elapsed_ms_per_quarter_note
+                _bpm = (uint16_t)(60000.0 / elapsed);
+            }
         }
+        _clocksSinceLastBeat = 0;
+        _lastClockTime = now;
     } else if (_lastClockTime == 0) {
         _lastClockTime = now;
     }
@@ -242,71 +249,61 @@ void MidiHandler::handleUSBMidi() {
 }
 
 void MidiHandler::processUSBMidiEvent(midiEventPacket_t event) {
+    // Store last received message for debugging
+    _lastMidiStatus = event.byte1;
+    _lastMidiData1 = event.byte2;
+    _lastMidiData2 = event.byte3;
+    
     // Check if this is a clock/transport message
     switch (event.byte1) {
         case 0xF8:  // MIDI Clock
             _lastUSBClockTime = millis();
             
-            // Only process if USB is active clock source
-            if (_activeClockSource == CLOCK_FORCE_USB || 
-                (_activeClockSource == CLOCK_AUTO && _clockSource == CLOCK_AUTO)) {
-                
-                _clockCount++;
-                _clocksSinceLastBeat++;
-                updateBPM();
-                
-                // Forward clock pulse to analog sync
-                if (_clockSync && _isPlaying) {
-                    _clockSync->onMidiClock();
-                }
+            _clockCount++;
+            _clocksSinceLastBeat++;
+            updateBPM();
+            
+            // Forward clock pulse to sync output
+            if (_clockSync && _isPlaying) {
+                _clockSync->onMidiClock();
             }
             break;
             
         case 0xFA:  // Start
             _lastUSBClockTime = millis();
-            if (_activeClockSource == CLOCK_FORCE_USB || 
-                (_activeClockSource == CLOCK_AUTO && _clockSource == CLOCK_AUTO)) {
-                _isPlaying = true;
-                _clockCount = 0;
-                _lastClockTime = 0;
-                _clocksSinceLastBeat = 0;
-                
-                if (_clockSync) {
-                    _clockSync->onTransportStart();
-                }
-                DEBUG_PRINTLN("USB Start");
+            _isPlaying = true;
+            _clockCount = 0;
+            _lastClockTime = 0;
+            _clocksSinceLastBeat = 0;
+            
+            if (_clockSync) {
+                _clockSync->onTransportStart();
             }
+            DEBUG_PRINTLN("USB Start");
             break;
             
         case 0xFB:  // Continue
             _lastUSBClockTime = millis();
-            if (_activeClockSource == CLOCK_FORCE_USB || 
-                (_activeClockSource == CLOCK_AUTO && _clockSource == CLOCK_AUTO)) {
-                _isPlaying = true;
-                
-                if (_clockSync) {
-                    _clockSync->onTransportContinue();
-                }
-                DEBUG_PRINTLN("USB Cont");
+            _isPlaying = true;
+            
+            if (_clockSync) {
+                _clockSync->onTransportContinue();
             }
+            DEBUG_PRINTLN("USB Cont");
             break;
             
         case 0xFC:  // Stop
             _lastUSBClockTime = millis();
-            if (_activeClockSource == CLOCK_FORCE_USB || 
-                (_activeClockSource == CLOCK_AUTO && _clockSource == CLOCK_AUTO)) {
-                _isPlaying = false;
-                
-                if (_clockSync) {
-                    _clockSync->onTransportStop();
-                }
-                DEBUG_PRINTLN("USB Stop");
+            _isPlaying = false;
+            
+            if (_clockSync) {
+                _clockSync->onTransportStop();
             }
+            DEBUG_PRINTLN("USB Stop");
             break;
             
         default:
-            // Forward other USB MIDI messages to DIN (optional)
-            // This allows the device to act as a USB-to-DIN interface
+            // Other MIDI messages (notes, CC, etc.) - already forwarded in update()
             break;
     }
 }

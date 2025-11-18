@@ -46,6 +46,11 @@ public:
     uint16_t getBPM() const { return _bpm; }
     uint32_t getClockCount() const { return _clockCount; }
     
+    // Debug: Get last received MIDI message
+    uint8_t getLastMidiStatus() const { return _lastMidiStatus; }
+    uint8_t getLastMidiData1() const { return _lastMidiData1; }
+    uint8_t getLastMidiData2() const { return _lastMidiData2; }
+    
     // Clock sync callback registration
     void setClockSync(ClockSync* clockSync) { _clockSync = clockSync; }
     
@@ -60,6 +65,11 @@ private:
     bool _isPlaying;
     uint16_t _bpm;
     uint32_t _clockCount;
+    
+    // Debug: Last received MIDI message
+    uint8_t _lastMidiStatus;
+    uint8_t _lastMidiData1;
+    uint8_t _lastMidiData2;
     
     // Clock sync output handler
     ClockSync* _clockSync;
