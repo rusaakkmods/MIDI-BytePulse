@@ -1,0 +1,3 @@
+[submodule "schematics/rmods-midi-bytepulse-pcb"]
+	path = schematics/rmods-midi-bytepulse-pcb
+	url = https://github.com/rusaakkmods/rmods-midi-bytepulse-pcb.git
