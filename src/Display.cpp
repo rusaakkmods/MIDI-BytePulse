@@ -186,8 +186,8 @@ void Display::handleEncoderPress() {
 void Display::renderSplash() {
     _display.firstPage();
     do {
-        _display.setFont(u8g2_font_ncenB10_tr);
-        _display.drawStr(10, 36, "BytePulse");
+        _display.setFont(u8g2_font_6x10_tr);
+        _display.drawStr(30, 20, "BytePulse");
     } while (_display.nextPage());
 }
 
@@ -199,8 +199,7 @@ void Display::renderMain() {
         _display.setFont(u8g2_font_6x10_tr);
         
         #if TEST_MODE
-        // Test mode: Display volume, cutoff, and resonance values (128x32 display)
-        _display.setFont(u8g2_font_8x13_tf);
+        // Test mode: Display volume, cutoff, and resonance values (use small font)
         
         if (_controls) {
             // Get current MIDI values
