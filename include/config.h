@@ -13,7 +13,7 @@
 // ============================================================================
 
 // MIDI Hardware UART
-#define MIDI_IN_PIN         RX1   // Pin 0 (RX1) - MIDI DIN IN via optocoupler
+#define MIDI_IN_PIN         0   // Pin 0 (RX1) - MIDI DIN IN via optocoupler
 
 // Clock Sync Output
 #define CLOCK_OUT_PIN       5   // Pin 5 - Clock pulse output (via transistor Q1)
