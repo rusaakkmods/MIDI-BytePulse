@@ -30,11 +30,21 @@ void MidiHandler::begin() {
     Serial1.begin(MIDI_BAUD_RATE);
     midiDIN.begin(MIDI_CHANNEL_OMNI);
     
+    // Clock and transport handlers
     midiDIN.setHandleClock(handleDINClock);
     midiDIN.setHandleStart(handleDINStart);
     midiDIN.setHandleContinue(handleDINContinue);
     midiDIN.setHandleStop(handleDINStop);
     midiDIN.setHandleSystemReset(handleDINSystemReset);
+    
+    // Message forwarding handlers (DIN to USB)
+    midiDIN.setHandleNoteOn(handleDINNoteOn);
+    midiDIN.setHandleNoteOff(handleDINNoteOff);
+    midiDIN.setHandleControlChange(handleDINControlChange);
+    midiDIN.setHandleProgramChange(handleDINProgramChange);
+    midiDIN.setHandleAfterTouchPoly(handleDINAfterTouchPoly);
+    midiDIN.setHandleAfterTouchChannel(handleDINAfterTouchChannel);
+    midiDIN.setHandlePitchBend(handleDINPitchBend);
     
     midiDIN.turnThruOff();
     
@@ -368,4 +378,90 @@ bool MidiHandler::isUSBClockActive() const {
 bool MidiHandler::isDINClockActive() const {
     unsigned long now = millis();
     return (now - _lastDINClockTime) < CLOCK_TIMEOUT_MS;
+}
+
+// ============================================================================
+// DIN to USB MIDI Forwarding Handlers (Static)
+// ============================================================================
+
+void MidiHandler::handleDINNoteOn(byte channel, byte note, byte velocity) {
+    // Forward DIN MIDI Note On to USB MIDI immediately
+    MidiUSB.sendMIDI({
+        0x09,                           // Note On
+        (byte)(0x90 | (channel - 1)),   // Note On on channel
+        note,
+        velocity
+    });
+    MidiUSB.flush();
+}
+
+void MidiHandler::handleDINNoteOff(byte channel, byte note, byte velocity) {
+    // Forward DIN MIDI Note Off to USB MIDI immediately
+    MidiUSB.sendMIDI({
+        0x08,                           // Note Off
+        (byte)(0x80 | (channel - 1)),   // Note Off on channel
+        note,
+        velocity
+    });
+    MidiUSB.flush();
+}
+
+void MidiHandler::handleDINControlChange(byte channel, byte cc, byte value) {
+    // Forward DIN MIDI CC to USB MIDI immediately
+    MidiUSB.sendMIDI({
+        0x0B,                           // Control Change
+        (byte)(0xB0 | (channel - 1)),   // CC on channel
+        cc,
+        value
+    });
+    MidiUSB.flush();
+}
+
+void MidiHandler::handleDINProgramChange(byte channel, byte program) {
+    // Forward DIN MIDI Program Change to USB MIDI immediately
+    MidiUSB.sendMIDI({
+        0x0C,                           // Program Change
+        (byte)(0xC0 | (channel - 1)),   // Program Change on channel
+        program,
+        0
+    });
+    MidiUSB.flush();
+}
+
+void MidiHandler::handleDINAfterTouchPoly(byte channel, byte note, byte pressure) {
+    // Forward DIN MIDI Poly Aftertouch to USB MIDI immediately
+    MidiUSB.sendMIDI({
+        0x0A,                           // Poly Aftertouch
+        (byte)(0xA0 | (channel - 1)),   // Poly Aftertouch on channel
+        note,
+        pressure
+    });
+    MidiUSB.flush();
+}
+
+void MidiHandler::handleDINAfterTouchChannel(byte channel, byte pressure) {
+    // Forward DIN MIDI Channel Aftertouch to USB MIDI immediately
+    MidiUSB.sendMIDI({
+        0x0D,                           // Channel Aftertouch
+        (byte)(0xD0 | (channel - 1)),   // Channel Aftertouch on channel
+        pressure,
+        0
+    });
+    MidiUSB.flush();
+}
+
+void MidiHandler::handleDINPitchBend(byte channel, int bend) {
+    // MIDI Library gives bend as -8192 to +8191, convert to 0-16383
+    unsigned int bendValue = bend + 8192;
+    byte lsb = bendValue & 0x7F;
+    byte msb = (bendValue >> 7) & 0x7F;
+    
+    // Forward DIN MIDI Pitch Bend to USB MIDI immediately
+    MidiUSB.sendMIDI({
+        0x0E,                           // Pitch Bend
+        (byte)(0xE0 | (channel - 1)),   // Pitch Bend on channel
+        lsb,
+        msb
+    });
+    MidiUSB.flush();
 }

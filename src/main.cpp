@@ -117,9 +117,10 @@ void testModeLoop() {
     DEBUG_PRINT("Pan value: ");
     DEBUG_PRINTLN(panValue);
     
-    // Update display pan value
+    // Update display pan value and mark dirty
     display._lastPanValue = panValue;
     strcpy(display._lastControlLabel, "PAN");
+    display._needsUpdate = true;
   }
   
   // Handle encoder button for Note On/Off test
@@ -139,9 +140,11 @@ void testModeLoop() {
   bool functionButtonPressed = controls.functionPressed();
   if (functionButtonPressed && !functionButtonWasPressed) {
     display._encoderButtonPressed = true;
+    display._needsUpdate = true;
     DEBUG_PRINTLN("Function button pressed");
   } else if (!functionButtonPressed && functionButtonWasPressed) {
     display._encoderButtonPressed = false;
+    display._needsUpdate = true;
     DEBUG_PRINTLN("Function button released");
   }
   functionButtonWasPressed = functionButtonPressed;

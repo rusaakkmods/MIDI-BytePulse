@@ -13,7 +13,7 @@
 // ============================================================================
 
 #define ENABLE_DISPLAY      1    // Set to 0 to disable OLED display (saves flash)
-#define TEST_MODE           1    // Set to 1 to enable test mode (display only)
+#define TEST_MODE           0    // Set to 1 to enable test mode (display only)
 #define SERIAL_DEBUG        false // Disable serial debug to prevent encoder noise on Pin 1 (TX0)
 
 // ============================================================================

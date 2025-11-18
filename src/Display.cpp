@@ -27,7 +27,9 @@ Display::Display()
     , _lastResonanceValue(255)
     , _lastPanValue(64)
     , _wasStopped(true)
-    , _encoderButtonPressed(false) {
+    , _encoderButtonPressed(false)
+    , _needsUpdate(true)
+    , _lastPlayingState(false) {
     strcpy(_lastControlLabel, "---");
 }
 
@@ -44,7 +46,10 @@ void Display::begin() {
 void Display::update() {
     unsigned long now = millis();
     
-    if (now - _lastUpdate < DISPLAY_UPDATE_MS) {
+    // Always check for value changes, but respect update interval for actual rendering
+    bool shouldRender = (now - _lastUpdate >= DISPLAY_UPDATE_MS) || _needsUpdate;
+    
+    if (!shouldRender) {
         return;
     }
     _lastUpdate = now;
@@ -58,6 +63,7 @@ void Display::update() {
             
         case MODE_MAIN:
             renderMain();
+            _needsUpdate = false;  // Reset after render
             break;
             
         case MODE_MENU:
@@ -65,6 +71,7 @@ void Display::update() {
                 exitMenu();
             } else {
                 renderMenu();
+                _needsUpdate = false;  // Reset after render
             }
             break;
     }
@@ -78,6 +85,8 @@ void Display::showSplash() {
 
 void Display::showMain() {
     _mode = MODE_MAIN;
+    _display.clearBuffer();  // Clear the splash screen
+    _needsUpdate = true;      // Force first render
     renderMain();
 }
 
@@ -94,6 +103,9 @@ void Display::enterMenu() {
     }
     _editChannel = MIDI_CHANNEL;
     
+    _display.clearBuffer();  // Clear the main screen
+    _needsUpdate = true;      // Force render of menu
+    
     resetMenuTimeout();
     DEBUG_PRINTLN("Menu");
 }
@@ -101,6 +113,8 @@ void Display::enterMenu() {
 void Display::exitMenu() {
     _mode = MODE_MAIN;
     _editingValue = false;
+    _display.clearBuffer();  // Clear the menu
+    _needsUpdate = true;      // Force render of main screen
     DEBUG_PRINTLN("Exit");
 }
 
@@ -184,88 +198,99 @@ void Display::handleEncoderPress() {
 }
 
 void Display::renderSplash() {
-    _display.firstPage();
-    do {
-        _display.setFont(u8g2_font_6x10_tr);
-        _display.drawStr(30, 20, "BytePulse");
-    } while (_display.nextPage());
+    _display.clearBuffer();
+    _display.setFont(u8g2_font_6x10_tr);
+    _display.drawStr(30, 20, "BytePulse");
+    _display.sendBuffer();
 }
 
 void Display::renderMain() {
     char buf[32];
     
-    _display.firstPage();
-    do {
-        _display.setFont(u8g2_font_6x10_tr);
+    // Don't clear entire buffer - we'll only update changed regions
+    _display.setFont(u8g2_font_6x10_tr);
+    
+    #if TEST_MODE
+    // Test mode: Display volume, cutoff, and resonance values (use small font)
+    
+    if (_controls) {
+        // Get current MIDI values
+        uint8_t volumeVal = _controls->getVolumeValue();
+        uint8_t cutoffVal = _controls->getCutoffValue();
+        uint8_t resonanceVal = _controls->getResonanceValue();
         
-        #if TEST_MODE
-        // Test mode: Display volume, cutoff, and resonance values (use small font)
-        
-        if (_controls) {
-            // Get current MIDI values
-            uint8_t volumeVal = _controls->getVolumeValue();
-            uint8_t cutoffVal = _controls->getCutoffValue();
-            uint8_t resonanceVal = _controls->getResonanceValue();
-            
-            // Check which control changed and update display
-            if (volumeVal != _lastVolumeValue) {
-                _lastVolumeValue = volumeVal;
-                strcpy(_lastControlLabel, "VOL");
-            }
-            if (cutoffVal != _lastCutoffValue) {
-                _lastCutoffValue = cutoffVal;
-                strcpy(_lastControlLabel, "CUT");
-            }
-            if (resonanceVal != _lastResonanceValue) {
-                _lastResonanceValue = resonanceVal;
-                strcpy(_lastControlLabel, "RES");
-            }
-            // Pan is updated directly from testModeLoop
-            
-            // Display the last changed control
-            if (strcmp(_lastControlLabel, "VOL") == 0) {
-                snprintf(buf, sizeof(buf), "VOL:%d", _lastVolumeValue);
-            } else if (strcmp(_lastControlLabel, "CUT") == 0) {
-                snprintf(buf, sizeof(buf), "CUT:%d", _lastCutoffValue);
-            } else if (strcmp(_lastControlLabel, "RES") == 0) {
-                snprintf(buf, sizeof(buf), "RES:%d", _lastResonanceValue);
-            } else if (strcmp(_lastControlLabel, "PAN") == 0) {
-                snprintf(buf, sizeof(buf), "PAN:%d", _lastPanValue);
-            } else {
-                snprintf(buf, sizeof(buf), "---");
-            }
-            _display.drawStr(0, 15, buf);
-            
-            // Show encoder button status at top right
-            if (_encoderButtonPressed) {
-                _display.drawStr(80, 15, "PRESSED");
-            }
-            
-            // Show play state at bottom
-            if (_midiHandler && _midiHandler->isPlaying()) {
-                _display.drawStr(0, 30, "PLAY");
-            } else if (_wasStopped) {
-                _display.drawStr(0, 30, "STOP");
-            } else {
-                _display.drawStr(0, 30, "PAUSE");
-            }
-        } else {
-            _display.drawStr(0, 20, "---");
+        // Check which control changed
+        if (volumeVal != _lastVolumeValue) {
+            _lastVolumeValue = volumeVal;
+            strcpy(_lastControlLabel, "VOL");
         }
-        #else
-        // Line 1: Transport status + BPM
-        if (_midiHandler && _midiHandler->isPlaying()) {
-            snprintf(buf, sizeof(buf), "%dbpm", _midiHandler->getBPM());
-            _display.drawStr(0, 10, buf);
-            
-            ClockSource active = _midiHandler->getActiveClockSource();
-            if (active == CLOCK_FORCE_USB) {
-                _display.drawStr(60, 10, "USB");
-            } else if (active == CLOCK_FORCE_DIN) {
-                _display.drawStr(60, 10, "DIN");
-            }
+        if (cutoffVal != _lastCutoffValue) {
+            _lastCutoffValue = cutoffVal;
+            strcpy(_lastControlLabel, "CUT");
+        }
+        if (resonanceVal != _lastResonanceValue) {
+            _lastResonanceValue = resonanceVal;
+            strcpy(_lastControlLabel, "RES");
+        }
+        // Pan is updated directly from testModeLoop
+        
+        // Clear and redraw control value area only (top line)
+        _display.setDrawColor(0);  // Black
+        _display.drawBox(0, 0, 80, 16);  // Clear control value area
+        _display.setDrawColor(1);  // White
+        
+        // Display the last changed control
+        if (strcmp(_lastControlLabel, "VOL") == 0) {
+            snprintf(buf, sizeof(buf), "VOL:%d", _lastVolumeValue);
+        } else if (strcmp(_lastControlLabel, "CUT") == 0) {
+            snprintf(buf, sizeof(buf), "CUT:%d", _lastCutoffValue);
+        } else if (strcmp(_lastControlLabel, "RES") == 0) {
+            snprintf(buf, sizeof(buf), "RES:%d", _lastResonanceValue);
+        } else if (strcmp(_lastControlLabel, "PAN") == 0) {
+            snprintf(buf, sizeof(buf), "PAN:%d", _lastPanValue);
         } else {
-            _display.drawStr(0, 10, "STOP");
+            snprintf(buf, sizeof(buf), "---");
+        }
+        _display.drawStr(0, 15, buf);
+        
+        // Clear and redraw encoder button status area only (top right)
+        _display.setDrawColor(0);  // Black
+        _display.drawBox(80, 0, 48, 16);  // Clear button status area
+        _display.setDrawColor(1);  // White
+        
+        if (_encoderButtonPressed) {
+            _display.drawStr(80, 15, "PRESSED");
+        }
+        
+        // Check for play state changes
+        bool currentPlayingState = (_midiHandler && _midiHandler->isPlaying());
+        if (currentPlayingState != _lastPlayingState) {
+            _lastPlayingState = currentPlayingState;
+        }
+        
+        _display.setDrawColor(0);  // Black
+        _display.drawBox(0, 16, 60, 16);  // Clear transport area
+        _display.setDrawColor(1);  // White
+        
+        if (currentPlayingState) {
+            _display.drawStr(0, 30, "PLAY");
+        } else if (_wasStopped) {
+            _display.drawStr(0, 30, "STOP");
+        } else {
+            _display.drawStr(0, 30, "PAUSE");
+        }
+    } else {
+        _display.drawStr(0, 20, "---");
+    }
+    #else
+        // Line 1: Controls (VOL CUT RES PPQN) in 2-digit hex
+        if (_controls && _clockSync) {
+            snprintf(buf, sizeof(buf), "V%02X C%02X R%02X Q%02X",
+                     _controls->getVolumeValue(),
+                     _controls->getCutoffValue(),
+                     _controls->getResonanceValue(),
+                     _clockSync->getPPQN());
+            _display.drawStr(0, 10, buf);
         }
         
         // Cable status
@@ -274,71 +299,56 @@ void Display::renderMain() {
         } else {
             _display.drawCircle(120, 7, 3);
         }
-        
-        // Line 2: Clock info
-        if (_clockSync) {
-            snprintf(buf, sizeof(buf), "Q%d P%lu", 
-                     _clockSync->getPPQN(), 
-                     (unsigned long)_clockSync->getPulseCount());
-            _display.drawStr(0, 30, buf);
-        }
-        
-        // Line 3: Controls
-        if (_controls) {
-            snprintf(buf, sizeof(buf), "V%d C%d R%d",
-                     _controls->getVolumeValue(),
-                     _controls->getCutoffValue(),
-                     _controls->getResonanceValue());
-            _display.drawStr(0, 50, buf);
-        }
-        #endif
-    } while (_display.nextPage());
+    #endif
+    
+    // Send only the changed regions to display (framebuffer mode)
+    _display.sendBuffer();
 }
 
 void Display::renderMenu() {
     char buf[16];
     
-    _display.firstPage();
-    do {
-        _display.setFont(u8g2_font_6x10_tr);
-        int y = 12;
-        
-        // PPQN
-        snprintf(buf, sizeof(buf), "%d", _editPPQN);
-        if (_selectedItem == MENU_PPQN) _display.drawStr(0, y, ">");
-        _display.drawStr(10, y, "PPQN");
-        _display.drawStr(70, y, buf);
-        if (_selectedItem == MENU_PPQN && _editingValue) {
-            _display.drawFrame(68, y-9, 30, 12);
-        }
-        y += 14;
-        
-        // Clock Source
-        const char* cs = "AUTO";
-        if (_editClockSource == CLOCK_FORCE_USB) cs = "USB";
-        else if (_editClockSource == CLOCK_FORCE_DIN) cs = "DIN";
-        if (_selectedItem == MENU_CLOCK_SOURCE) _display.drawStr(0, y, ">");
-        _display.drawStr(10, y, "Clk");
-        _display.drawStr(70, y, cs);
-        if (_selectedItem == MENU_CLOCK_SOURCE && _editingValue) {
-            _display.drawFrame(68, y-9, 30, 12);
-        }
-        y += 14;
-        
-        // MIDI Channel
-        snprintf(buf, sizeof(buf), "%d", _editChannel);
-        if (_selectedItem == MENU_MIDI_CHANNEL) _display.drawStr(0, y, ">");
-        _display.drawStr(10, y, "Ch");
-        _display.drawStr(70, y, buf);
-        if (_selectedItem == MENU_MIDI_CHANNEL && _editingValue) {
-            _display.drawFrame(68, y-9, 30, 12);
-        }
-        y += 18;
-        
-        // Exit
-        if (_selectedItem == MENU_EXIT) _display.drawStr(0, y, ">");
-        _display.drawStr(10, y, "Exit");
-    } while (_display.nextPage());
+    _display.clearBuffer();  // Clear for menu
+    _display.setFont(u8g2_font_6x10_tr);
+    int y = 12;
+    
+    // PPQN
+    snprintf(buf, sizeof(buf), "%d", _editPPQN);
+    if (_selectedItem == MENU_PPQN) _display.drawStr(0, y, ">");
+    _display.drawStr(10, y, "PPQN");
+    _display.drawStr(70, y, buf);
+    if (_selectedItem == MENU_PPQN && _editingValue) {
+        _display.drawFrame(68, y-9, 30, 12);
+    }
+    y += 14;
+    
+    // Clock Source
+    const char* cs = "AUTO";
+    if (_editClockSource == CLOCK_FORCE_USB) cs = "USB";
+    else if (_editClockSource == CLOCK_FORCE_DIN) cs = "DIN";
+    if (_selectedItem == MENU_CLOCK_SOURCE) _display.drawStr(0, y, ">");
+    _display.drawStr(10, y, "Clk");
+    _display.drawStr(70, y, cs);
+    if (_selectedItem == MENU_CLOCK_SOURCE && _editingValue) {
+        _display.drawFrame(68, y-9, 30, 12);
+    }
+    y += 14;
+    
+    // MIDI Channel
+    snprintf(buf, sizeof(buf), "%d", _editChannel);
+    if (_selectedItem == MENU_MIDI_CHANNEL) _display.drawStr(0, y, ">");
+    _display.drawStr(10, y, "Ch");
+    _display.drawStr(70, y, buf);
+    if (_selectedItem == MENU_MIDI_CHANNEL && _editingValue) {
+        _display.drawFrame(68, y-9, 30, 12);
+    }
+    y += 18;
+    
+    // Exit
+    if (_selectedItem == MENU_EXIT) _display.drawStr(0, y, ">");
+    _display.drawStr(10, y, "Exit");
+    
+    _display.sendBuffer();
 }
 
 void Display::resetMenuTimeout() {

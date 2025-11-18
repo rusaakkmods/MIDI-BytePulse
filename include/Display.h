@@ -50,7 +50,7 @@ public:
     void handleEncoderPress();
     
 private:
-    U8G2_SSD1306_128X32_UNIVISION_1_HW_I2C _display;
+    U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C _display;  // Full framebuffer mode
     
     MidiHandler* _midiHandler;
     ClockSync* _clockSync;
@@ -75,11 +75,14 @@ private:
     char _lastControlLabel[5];  // "VOL", "CUT", "RES", or "PAN"
     bool _wasStopped;  // Track if fully stopped vs paused
     bool _encoderButtonPressed;  // Track encoder button state
+    bool _needsUpdate;  // Flag to trigger display update only when needed
+    bool _lastPlayingState;  // Track playing state changes
     
     void renderSplash();
     void renderMain();
     void renderMenu();
     void resetMenuTimeout();
+    void markDirty() { _needsUpdate = true; }  // Mark display as needing update
     
     friend void loop();  // Allow loop to access _wasStopped
     friend void testModeLoop();  // Allow testModeLoop to access _wasStopped
