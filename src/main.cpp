@@ -42,6 +42,13 @@ void setup() {
   DEBUG_PRINTLN("Universal MIDI Clock Converter");
   #endif
   
+  #if MIDI_FORWARD_ONLY
+  // MIDI Forward Only Mode: Initialize MIDI handler
+  midiHandler.begin();
+  DEBUG_PRINTLN("MIDI Forward Only Mode - Ready");
+  return;
+  #endif
+  
   // Initialize settings from EEPROM
   settings.begin();
   
@@ -195,6 +202,12 @@ void testModeLoop() {
 // ============================================================================
 
 void loop() {
+  #if MIDI_FORWARD_ONLY
+  // MIDI Forward Only Mode: Use MIDI Library for efficient parsing
+  midiHandler.update();
+  return;
+  #endif
+  
   #if TEST_MODE
   testModeLoop();
   return;
@@ -208,13 +221,30 @@ void loop() {
   bool playPressed = controls.playPressed();
   bool stopPressed = controls.stopPressed();
   
-  // Update all modules
-  midiHandler.update();  // Handles both USB and DIN MIDI
+  // Update MIDI handler first and more frequently for low latency
+  midiHandler.update();
+  
+  // Update other modules less frequently
+  static unsigned long lastControlUpdate = 0;
+  static unsigned long lastDisplayUpdate = 0;
+  unsigned long currentTime = millis();
+  
   clockSync.update();
-  controls.update();
+  
+  if (currentTime - lastControlUpdate >= 5) {  // Update controls every 5ms
+    controls.update();
+    lastControlUpdate = currentTime;
+  }
+  
   #if ENABLE_DISPLAY
-  display.update();
+  if (currentTime - lastDisplayUpdate >= DISPLAY_UPDATE_MS) {
+    display.update();
+    lastDisplayUpdate = currentTime;
+  }
   #endif
+  
+  // Call MIDI update again to catch any messages that arrived during other processing
+  midiHandler.update();
   
   // Play/Pause button (toggle behavior)
   if (playPressed && !playWasPressed) {
