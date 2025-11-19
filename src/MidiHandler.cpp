@@ -3,10 +3,13 @@
  */
 
 #include "MIDIHandler.h"
+#include "SyncOut.h"
 #include <MIDI.h>
 #include <MIDIUSB.h>
 
 MIDI_CREATE_INSTANCE(HardwareSerial, Serial1, MIDI_DIN);
+
+SyncOut* MIDIHandler::syncOut = nullptr;
 
 void MIDIHandler::begin() {
   MIDI_DIN.begin(MIDI_CHANNEL_OMNI);
@@ -30,6 +33,10 @@ void MIDIHandler::begin() {
 
 void MIDIHandler::update() {
   MIDI_DIN.read();
+}
+
+void MIDIHandler::setSyncOut(SyncOut* sync) {
+  syncOut = sync;
 }
 
 void MIDIHandler::forwardDINtoUSB(byte channel, byte type, byte data1, byte data2) {
@@ -97,24 +104,40 @@ void MIDIHandler::handleClock() {
   midiEventPacket_t event = {0x0F, 0xF8, 0, 0};
   MidiUSB.sendMIDI(event);
   MidiUSB.flush();
+  
+  if (syncOut) {
+    syncOut->handleClock();
+  }
 }
 
 void MIDIHandler::handleStart() {
   midiEventPacket_t event = {0x0F, 0xFA, 0, 0};
   MidiUSB.sendMIDI(event);
   MidiUSB.flush();
+  
+  if (syncOut) {
+    syncOut->handleStart();
+  }
 }
 
 void MIDIHandler::handleContinue() {
   midiEventPacket_t event = {0x0F, 0xFB, 0, 0};
   MidiUSB.sendMIDI(event);
   MidiUSB.flush();
+  
+  if (syncOut) {
+    syncOut->handleStart();
+  }
 }
 
 void MIDIHandler::handleStop() {
   midiEventPacket_t event = {0x0F, 0xFC, 0, 0};
   MidiUSB.sendMIDI(event);
   MidiUSB.flush();
+  
+  if (syncOut) {
+    syncOut->handleStop();
+  }
 }
 
 void MIDIHandler::handleActiveSensing() {

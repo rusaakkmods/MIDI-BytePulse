@@ -8,12 +8,16 @@
 
 #include <Arduino.h>
 
+class SyncOut;  // Forward declaration
+
 class MIDIHandler {
 public:
   void begin();
   void update();
+  void setSyncOut(SyncOut* sync);
 
 private:
+  static SyncOut* syncOut;
   static void forwardDINtoUSB(byte channel, byte type, byte data1, byte data2);
   
   // MIDI callback handlers
