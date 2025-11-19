@@ -8,9 +8,11 @@
 #include "config.h"
 #include "MIDIHandler.h"
 #include "SyncOut.h"
+#include "TransportControl.h"
 
 MIDIHandler midiHandler;
 SyncOut syncOut;
+TransportControl transport;
 
 void processUSBMIDI() {
   midiEventPacket_t rx = MidiUSB.read();
@@ -40,10 +42,12 @@ void setup() {
   syncOut.begin();
   midiHandler.setSyncOut(&syncOut);
   midiHandler.begin();
+  transport.begin();
 }
 
 void loop() {
   processUSBMIDI();
   midiHandler.update();
   syncOut.update();
+  transport.update();
 }
