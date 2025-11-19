@@ -8,7 +8,7 @@
 
 #include <Arduino.h>
 
-class DisplayControl;
+class HC595Display;
 
 class BPMCounter {
 public:
@@ -17,17 +17,21 @@ public:
   void reset();
   uint16_t getBPM();
   bool hasChanged(uint8_t threshold = 2);
-  void setDisplayControl(DisplayControl* dc) { displayControl = dc; }
-  void update();  // Call from main loop to handle beat off timing
+  void setDisplay(HC595Display* disp) { display = disp; }
+  void update();  // Call from main loop to handle beat off timing and BPM display
 
 private:
-  uint8_t beatPosition = 0;  // Track beat position (0-3)
+  uint8_t beatPosition = 0;  // Track beat position (0-3) for calculation timing
   unsigned long lastBeatTime = 0;
   unsigned long beatOnTime = 0;
   bool beatIsOn = false;
+  bool beatNeedsOn = false;   // Flag to turn on beat in main loop
+  bool beatNeedsOff = false;  // Flag to turn off beat in main loop
   uint16_t currentBPM = 0;
-  uint16_t lastReportedBPM = 0;
-  DisplayControl* displayControl = nullptr;
+  uint16_t displayedBPM = 0;  // Track what BPM is currently shown
+  uint16_t pendingBPM = 0;    // Pending BPM to display
+  bool bpmNeedsUpdate = false;
+  HC595Display* display = nullptr;
 };
 
 #endif  // BPM_COUNTER_H

@@ -10,14 +10,14 @@
 #include "SyncOut.h"
 #include "TransportControl.h"
 #include "PotControl.h"
-#include "DisplayControl.h"
+#include "HC595Display.h"
 #include "BPMCounter.h"
 
 MIDIHandler midiHandler;
 SyncOut syncOut;
 TransportControl transport;
 PotControl pots;
-DisplayControl display;
+HC595Display display(DISPLAY_RCLK_PIN);
 BPMCounter bpmCounter;
 
 void processUSBMIDI() {
@@ -54,7 +54,8 @@ void setup() {
   
   syncOut.begin();
   display.begin();
-  bpmCounter.setDisplayControl(&display);
+  
+  bpmCounter.setDisplay(&display);
   syncOut.setBPMCounter(&bpmCounter);
   midiHandler.setSyncOut(&syncOut);
   midiHandler.begin();
@@ -85,20 +86,14 @@ void loop() {
   // Lower priority UI updates (only after MIDI is processed)
   transport.update();
   pots.update();
-  bpmCounter.update();  // Handle beat off timing
   
-  // Update display state indicator (only when transport changes)
-  static unsigned long lastDisplayCheck = 0;
-  if (millis() - lastDisplayCheck >= 2000) {
-    static TransportState lastTransportState = TRANSPORT_STOP;
-    TransportState currentState = transport.getState();
-    
-    // Show "-" when stopped
-    if (currentState == TRANSPORT_STOP && lastTransportState != TRANSPORT_STOP) {
-      display.showStopIndicator();
-    }
-    
-    lastTransportState = currentState;
-    lastDisplayCheck = millis();
+  // Update beat indicator at moderate rate
+  static unsigned long lastDisplayUpdate = 0;
+  if (millis() - lastDisplayUpdate >= 10) {  // 100Hz update rate
+    bpmCounter.update();
+    lastDisplayUpdate = millis();
   }
+  
+  // Rapid multiplexing - update display continuously for smooth refresh
+  display.updateDisplay();
 }

@@ -28,16 +28,17 @@
 
 // Buttons
 #define BTN_FUNCTION_PIN    9
-#define BTN_PLAY_PIN       14
-#define BTN_STOP_PIN       15
+#define BTN_PLAY_PIN        6
+#define BTN_STOP_PIN        7
 
 // LEDs
-#define LED_BEAT_PIN       16
+#define LED_BEAT_PIN       10
 
-// TM1637 7-Segment Display
-// Pro Micro: Pin 6 = D6, Pin 7 = D7/E6
-#define TM1637_CLK_PIN      6
-#define TM1637_DIO_PIN      7
+// 74HC595 7-Segment Display Module (Dual Shift Register)
+// Hardware SPI + Latch for non-blocking updates
+#define DISPLAY_DIO_PIN    16  // MOSI - Hardware SPI Data
+#define DISPLAY_SCLK_PIN   15  // SCK  - Hardware SPI Clock
+#define DISPLAY_RCLK_PIN   14  // Latch - Register Clock (any GPIO)
 
 
 #define SERIAL_DEBUG        false
