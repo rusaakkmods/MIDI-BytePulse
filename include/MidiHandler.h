@@ -1,6 +1,5 @@
 /**
  * MIDI BytePulse - MIDI Handler
- * Handles forwarding of MIDI messages from DIN to USB with zero latency
  */
 
 #ifndef MIDI_HANDLER_H
@@ -8,7 +7,7 @@
 
 #include <Arduino.h>
 
-class SyncOut;  // Forward declaration
+class SyncOut;
 
 class MIDIHandler {
 public:
@@ -20,7 +19,6 @@ private:
   static SyncOut* syncOut;
   static void forwardDINtoUSB(byte channel, byte type, byte data1, byte data2);
   
-  // MIDI callback handlers
   static void handleNoteOn(byte channel, byte note, byte velocity);
   static void handleNoteOff(byte channel, byte note, byte velocity);
   static void handleAfterTouchPoly(byte channel, byte note, byte pressure);

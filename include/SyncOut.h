@@ -1,6 +1,5 @@
 /**
  * MIDI BytePulse - Sync Output Handler
- * Generates clock sync pulses and beat LED indicator
  */
 
 #ifndef SYNC_OUT_H
@@ -27,6 +26,7 @@ private:
   void pulseClock();
   void pulseLED();
   void checkUSBTimeout();
+  bool isJackConnected();
   
   unsigned long lastPulseTime = 0;
   unsigned long lastUSBClockTime = 0;
