@@ -10,14 +10,12 @@
 
 #include <Arduino.h>
 #include "config.h"
-#include "MidiHandler.h"
 
-MidiHandler midiHandler;
 
 void setup() {
-  midiHandler.begin();
+  
 }
 
 void loop() {
-  midiHandler.update();
+  
 }
