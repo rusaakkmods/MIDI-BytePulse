@@ -6,8 +6,8 @@
 #include "MidiHandler.h"
 
 Controls::Controls()
-    : _encoder(ENCODER_A_PIN, ENCODER_B_PIN)
-    , _midiHandler(nullptr)
+    : _midiHandler(nullptr)
+    , _encoder(ENCODER_A_PIN, ENCODER_B_PIN)
     , _lastEncoderPosition(0)
     , _functionPressed(false)
     , _functionLastState(HIGH)

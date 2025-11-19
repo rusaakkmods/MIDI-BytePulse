@@ -1,33 +1,14 @@
 /**
- * MIDI BytePulse - Display Module
- * Lightweight OLED display using U8g2 library
+ * MIDI BytePulse - TM1637 7-Segment Display
+ * Lightweight BPM display using TM1637 4-digit module
  */
 
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
 #include <Arduino.h>
-#include <U8g2lib.h>
+#include <TM1637Display.h>
 #include "config.h"
-
-// Forward declarations
-class MidiHandler;
-class ClockSync;
-class Controls;
-
-enum DisplayMode {
-    MODE_SPLASH,
-    MODE_MAIN,
-    MODE_MENU
-};
-
-enum MenuItem {
-    MENU_PPQN,
-    MENU_CLOCK_SOURCE,
-    MENU_MIDI_CHANNEL,
-    MENU_EXIT,
-    MENU_COUNT
-};
 
 class Display {
 public:
@@ -35,57 +16,15 @@ public:
     
     void begin();
     void update();
-    
-    void setMidiHandler(MidiHandler* midiHandler) { _midiHandler = midiHandler; }
-    void setClockSync(ClockSync* clockSync) { _clockSync = clockSync; }
-    void setControls(Controls* controls) { _controls = controls; }
-    
-    void showSplash();
-    void showMain();
-    void enterMenu();
-    void exitMenu();
-    bool isInMenu() const { return _mode == MODE_MENU; }
-    
-    void handleEncoderDelta(int8_t delta);
-    void handleEncoderPress();
+    void showBPM(uint16_t bpm);
+    void showPPQN(uint8_t ppqn);
+    void clear();
+    void setBrightness(uint8_t brightness); // 0-7
     
 private:
-    U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C _display;  // Full framebuffer mode
-    
-    MidiHandler* _midiHandler;
-    ClockSync* _clockSync;
-    Controls* _controls;
-    
-    DisplayMode _mode;
-    unsigned long _lastUpdate;
-    unsigned long _splashStartTime;
-    unsigned long _lastActivity;
-    
-    MenuItem _selectedItem;
-    bool _editingValue;
-    uint8_t _editPPQN;
-    uint8_t _editChannel;
-    ClockSource _editClockSource;
-    
-    // Test mode tracking
-    uint8_t _lastVolumeValue;
-    uint8_t _lastCutoffValue;
-    uint8_t _lastResonanceValue;
-    uint8_t _lastPanValue;
-    char _lastControlLabel[5];  // "VOL", "CUT", "RES", or "PAN"
-    bool _wasStopped;  // Track if fully stopped vs paused
-    bool _encoderButtonPressed;  // Track encoder button state
-    bool _needsUpdate;  // Flag to trigger display update only when needed
-    bool _lastPlayingState;  // Track playing state changes
-    
-    void renderSplash();
-    void renderMain();
-    void renderMenu();
-    void resetMenuTimeout();
-    void markDirty() { _needsUpdate = true; }  // Mark display as needing update
-    
-    friend void loop();  // Allow loop to access _wasStopped
-    friend void testModeLoop();  // Allow testModeLoop to access _wasStopped
+    TM1637Display _display;
+    uint16_t _lastBPM;
+    bool _needsUpdate;
 };
 
 #endif // DISPLAY_H

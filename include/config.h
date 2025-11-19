@@ -12,8 +12,10 @@
 // FEATURE FLAGS
 // ============================================================================
 
-#define ENABLE_DISPLAY      0    // Set to 0 to disable OLED display (saves flash)
+#define ENABLE_DISPLAY      1    // Set to 0 to disable 7-segment display
+#ifndef TEST_MODE
 #define TEST_MODE           0    // Set to 1 to enable test mode (display only)
+#endif
 #define MIDI_FORWARD_ONLY   0    // Set to 1 for pure MIDI forwarding (no display, no controls)
 #define SERIAL_DEBUG        false  // Enable serial debug to check MIDI forwarding
 
@@ -23,6 +25,7 @@
 
 // MIDI Hardware UART
 #define MIDI_IN_PIN         0   // Pin 0 (RX1) - MIDI DIN IN via optocoupler
+#define MIDI_OUT_PIN        1   // Pin 1 (TX1) - MIDI DIN OUT (reserved for future use)
 
 // Clock Sync Output
 #define CLOCK_OUT_PIN       5   // Pin 5 - Clock pulse output (via transistor Q1)
@@ -34,8 +37,8 @@
 #define POT_RESONANCE_PIN  A2   // Pin 20 (A2) - Resonance control (MIDI CC71)
 
 // Rotary Encoder (both pins support hardware interrupts)
-#define ENCODER_A_PIN       1   // Pin 1 (INT3) - Encoder phase A 
-#define ENCODER_B_PIN       7   // Pin 7 (INT6) - Encoder phase B
+#define ENCODER_A_PIN       2   // Pin 2 (INT2) - Encoder phase A 
+#define ENCODER_B_PIN       3   // Pin 3 (INT0) - Encoder phase B
 #define ENCODER_BTN_PIN     8   // Pin 8 - Encoder push button
 
 // Buttons
@@ -47,12 +50,12 @@
 #define LED_BEAT_PIN       16   // Pin 16 - Beat indicator LED (red)
 // Note: Power LED on +5V rail (always on, not MCU-controlled)
 
-// I2C Display (OLED SSD1306)
-#define OLED_SDA_PIN        SDA   // Pin 2 (SDA) - I2C data
-#define OLED_SCL_PIN        SCL   // Pin 3 (SCL) - I2C clock
+// TM1637 7-Segment Display (4-digit)
+#define TM1637_CLK_PIN      6   // Pin 6 - Clock
+#define TM1637_DIO_PIN     10   // Pin 10 - Data I/O
 
 // Reserved for future DIN MIDI OUT
-#define MIDI_OUT_PIN        TX1   // Pin 1 (TX1) - Reserved, not used in v1
+// #define MIDI_OUT_PIN        TX1   // Pin 1 (TX1) - Reserved, not used in v1
 
 // ============================================================================
 // MIDI CONFIGURATION
@@ -115,11 +118,6 @@ enum ClockSource {
 // ============================================================================
 // DISPLAY CONFIGURATION
 // ============================================================================
-
-#define SCREEN_WIDTH       128    // OLED width in pixels
-#define SCREEN_HEIGHT      64     // OLED height in pixels
-#define OLED_RESET         -1     // Reset pin not used (shared with Pro Micro reset)
-#define OLED_I2C_ADDRESS   0x3C   // Default I2C address for SSD1306
 
 #define DISPLAY_UPDATE_MS  50     // Display refresh interval (20 Hz)
 #define SPLASH_DURATION_MS 2000   // Splash screen duration

@@ -73,17 +73,17 @@ void setup() {
   #endif
   
   #if ENABLE_DISPLAY
-  // Initialize display and link with other modules
+  // Initialize 7-segment display
   display.begin();
-  display.setMidiHandler(&midiHandler);
-  display.setClockSync(&clockSync);
-  display.setControls(&controls);
+  display.showBPM(120); // Show default BPM
   #endif
   
   DEBUG_PRINTLN("System initialized");
+  #if SERIAL_DEBUG
   DEBUG_PRINT("Clock source: ");
   ClockSource src = settings.getClockSource();
   DEBUG_PRINTLN(src == CLOCK_AUTO ? "AUTO" : (src == CLOCK_FORCE_USB ? "FORCE_USB" : "FORCE_DIN"));
+  #endif
 }
 
 // ============================================================================
@@ -92,108 +92,59 @@ void setup() {
 
 #if TEST_MODE
 void testModeLoop() {
-  // Handle transport buttons
   static bool playWasPressed = false;
   static bool stopWasPressed = false;
-  static bool isPlaying = false;  // false = stopped/paused, true = playing
-  static bool wasStopped = true;  // true = stopped (not just paused)
-  
-  // Pan control via encoder (0-127, center at 64)
-  static uint8_t panValue = 64;  // Start at center
+  static bool isPlaying = false;
+  static uint8_t panValue = 64;
   static bool encoderButtonWasPressed = false;
-  static bool functionButtonWasPressed = false;
   
-  // Update controls
   controls.update();
   
   // Handle encoder for pan control (CC10)
   int8_t encoderDelta = controls.getEncoderDelta();
   if (encoderDelta != 0) {
-    DEBUG_PRINT("Encoder delta: ");
-    DEBUG_PRINTLN(encoderDelta);
-    
     int16_t newPan = panValue + encoderDelta;
-    
-    // Constrain to 0-127 range
     if (newPan < 0) newPan = 0;
     if (newPan > 127) newPan = 127;
     
     panValue = (uint8_t)newPan;
     midiHandler.sendCC(CC_PAN, panValue);
     
-    DEBUG_PRINT("Pan value: ");
+    DEBUG_PRINT("Pan: ");
     DEBUG_PRINTLN(panValue);
-    
-    // Update display pan value and mark dirty
-    display._lastPanValue = panValue;
-    strcpy(display._lastControlLabel, "PAN");
-    display._needsUpdate = true;
   }
   
   // Handle encoder button for Note On/Off test
   bool encoderButtonPressed = controls.encoderPressed();
   if (encoderButtonPressed && !encoderButtonWasPressed) {
-    // Button just pressed - send Note On C3
-    midiHandler.sendNoteOn(48, 100);  // C3, velocity 100
-    DEBUG_PRINTLN("Encoder button pressed - Note On C3");
+    midiHandler.sendNoteOn(48, 100);
+    DEBUG_PRINTLN("Note On C3");
   } else if (!encoderButtonPressed && encoderButtonWasPressed) {
-    // Button just released - send Note Off C3
-    midiHandler.sendNoteOff(48, 0);   // C3, velocity 0
-    DEBUG_PRINTLN("Encoder button released - Note Off C3");
+    midiHandler.sendNoteOff(48, 0);
+    DEBUG_PRINTLN("Note Off C3");
   }
   encoderButtonWasPressed = encoderButtonPressed;
   
-  // Handle function button for display status only
-  bool functionButtonPressed = controls.functionPressed();
-  if (functionButtonPressed && !functionButtonWasPressed) {
-    display._encoderButtonPressed = true;
-    display._needsUpdate = true;
-    DEBUG_PRINTLN("Function button pressed");
-  } else if (!functionButtonPressed && functionButtonWasPressed) {
-    display._encoderButtonPressed = false;
-    display._needsUpdate = true;
-    DEBUG_PRINTLN("Function button released");
-  }
-  functionButtonWasPressed = functionButtonPressed;
-  
-  // Read button states
+  // Transport buttons
   bool playPressed = controls.playPressed();
   bool stopPressed = controls.stopPressed();
   
-  // Play/Pause button
   if (playPressed && !playWasPressed) {
     if (isPlaying) {
-      // Currently playing - pause it
       midiHandler.sendStop();
       isPlaying = false;
-      wasStopped = false;  // We're paused, not stopped
-      display._wasStopped = false;  // Update display state
     } else {
-      // Currently paused or stopped
-      if (wasStopped) {
-        // Was stopped - send Start (from beginning)
-        midiHandler.sendStart();
-      } else {
-        // Was paused - send Continue (resume)
-        midiHandler.sendContinue();
-      }
+      midiHandler.sendStart();
       isPlaying = true;
     }
   }
   playWasPressed = playPressed;
   
-  // Stop button
   if (stopPressed && !stopWasPressed) {
     midiHandler.sendStop();
     isPlaying = false;
-    wasStopped = true;  // Full stop, reset position
-    display._wasStopped = true;  // Update display state
   }
   stopWasPressed = stopPressed;
-  
-  #if ENABLE_DISPLAY
-  display.update();
-  #endif
 }
 #endif
 
@@ -213,123 +164,57 @@ void loop() {
   return;
   #endif
   
-  // Handle transport buttons
-  static bool playWasPressed = false;
-  static bool stopWasPressed = false;
-  
-  // Read button states
-  bool playPressed = controls.playPressed();
-  bool stopPressed = controls.stopPressed();
-  
-  // Update MIDI handler first and more frequently for low latency
+  // Update MIDI handler first for low latency
   midiHandler.update();
   
-  // Update other modules less frequently
-  static unsigned long lastControlUpdate = 0;
-  static unsigned long lastDisplayUpdate = 0;
-  unsigned long currentTime = millis();
-  
+  // Update clock sync
   clockSync.update();
   
-  if (currentTime - lastControlUpdate >= 5) {  // Update controls every 5ms
+  // Update controls periodically
+  static unsigned long lastControlUpdate = 0;
+  unsigned long currentTime = millis();
+  
+  if (currentTime - lastControlUpdate >= 5) {  // Every 5ms
     controls.update();
     lastControlUpdate = currentTime;
   }
   
   #if ENABLE_DISPLAY
-  if (currentTime - lastDisplayUpdate >= DISPLAY_UPDATE_MS) {
-    display.update();
+  // Update BPM display every second
+  static unsigned long lastDisplayUpdate = 0;
+  if (currentTime - lastDisplayUpdate >= 1000) {
+    display.showBPM(midiHandler.getBPM());
     lastDisplayUpdate = currentTime;
   }
   #endif
   
-  // Call MIDI update again to catch any messages that arrived during other processing
+  // Process MIDI again to catch any messages during other processing
   midiHandler.update();
   
-  // Track transport state locally for button logic
+  // Handle transport buttons
+  static bool playWasPressed = false;
+  static bool stopWasPressed = false;
   static bool localIsPlaying = false;
-  static bool wasStopped = true;  // true = stopped (position reset), false = paused
   
-  // Play/Pause button - toggle play/pause, send Start or Continue
+  bool playPressed = controls.playPressed();
+  bool stopPressed = controls.stopPressed();
+  
+  // Play/Pause button
   if (playPressed && !playWasPressed) {
     if (localIsPlaying) {
-      // Currently playing - pause it
       midiHandler.sendStop();
       localIsPlaying = false;
-      wasStopped = false;  // We're paused, not fully stopped
     } else {
-      // Currently paused or stopped
-      if (wasStopped) {
-        // Was stopped - send Start (from beginning)
-        midiHandler.sendStart();
-      } else {
-        // Was paused - send Continue (resume)
-        midiHandler.sendContinue();
-      }
+      midiHandler.sendStart();
       localIsPlaying = true;
     }
   }
   playWasPressed = playPressed;
   
-  // Stop button - full stop with position reset
+  // Stop button
   if (stopPressed && !stopWasPressed) {
     midiHandler.sendStop();
     localIsPlaying = false;
-    wasStopped = true;  // Full stop, reset position
   }
   stopWasPressed = stopPressed;
-  
-  // Function button - enter/exit menu
-  static bool functionWasPressed = false;
-  bool functionPressed = controls.functionPressed();
-  
-  #if ENABLE_DISPLAY
-  if (functionPressed && !functionWasPressed) {
-    if (display.isInMenu()) {
-      display.exitMenu();
-    } else {
-      display.enterMenu();
-    }
-  }
-  #endif
-  functionWasPressed = functionPressed;
-  
-  // Handle encoder input
-  #if ENABLE_DISPLAY
-  int8_t encoderDelta = controls.getEncoderDelta();
-  if (encoderDelta != 0 && display.isInMenu()) {
-    display.handleEncoderDelta(encoderDelta);
-  }
-  #endif
-  
-  // Handle encoder button press
-  static bool encoderWasPressed = false;
-  bool encoderPressed = controls.encoderPressed();
-  
-  #if ENABLE_DISPLAY
-  if (encoderPressed && !encoderWasPressed) {
-    if (display.isInMenu()) {
-      display.handleEncoderPress();
-      
-      // Save settings if changed
-      bool settingsChanged = false;
-      
-      if (clockSync.getPPQN() != settings.getPPQN()) {
-        settings.setPPQN(clockSync.getPPQN());
-        settingsChanged = true;
-      }
-      
-      if (midiHandler.getClockSource() != settings.getClockSource()) {
-        settings.setClockSource(midiHandler.getClockSource());
-        settingsChanged = true;
-      }
-      
-      if (settingsChanged) {
-        settings.save();
-        DEBUG_PRINTLN("Settings saved to EEPROM");
-      }
-    }
-  }
-  #endif
-  encoderWasPressed = encoderPressed;
 }
