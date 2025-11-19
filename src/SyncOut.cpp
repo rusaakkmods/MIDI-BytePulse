@@ -86,7 +86,7 @@ void SyncOut::handleClock(ClockSource source) {
     if (!isPlaying) {
       isPlaying = true;
       activeSource = CLOCK_SOURCE_DIN;
-      ppqnCounter = 1;  // Start at 1, not 0, so first clock doesn't trigger LED
+      ppqnCounter = 0;  // Start at 0 for proper first beat
       lastDINClockTime = millis();
       prevDINClockTime = 0;
       avgDINClockInterval = 0;
@@ -96,25 +96,19 @@ void SyncOut::handleClock(ClockSource source) {
         bpmCounter->reset();
         bpmCounter->start();
       }
-      
-      // Send first clock pulse but skip LED/beat
-      if (isJackConnected()) {
-        digitalWrite(CLOCK_OUT_PIN, HIGH);
-      }
-      clockState = true;
-      lastPulseTime = micros();
-      return;  // Skip the LED check for initialization clock
     }
   }
   
   if (!isPlaying) return;
   
+  // Always output clock pulse
   if (isJackConnected()) {
     digitalWrite(CLOCK_OUT_PIN, HIGH);
   }
   clockState = true;
   lastPulseTime = micros();
   
+  // Handle beat LED and BPM counter on downbeat (ppqnCounter == 0)
   if (ppqnCounter == 0) {
     digitalWrite(LED_BEAT_PIN, HIGH);
     ledState = true;
@@ -125,6 +119,7 @@ void SyncOut::handleClock(ClockSource source) {
     }
   }
   
+  // Increment counter after processing current beat
   ppqnCounter++;
   if (ppqnCounter >= PPQN) {
     ppqnCounter = 0;
@@ -139,20 +134,14 @@ void SyncOut::handleStart(ClockSource source) {
     prevUSBClockTime = 0;
     avgUSBClockInterval = 0;
     isPlaying = true;
-    ppqnCounter = 0;
+    ppqnCounter = 0;  // Ready for first clock at position 0
     
     if (bpmCounter) {
       bpmCounter->reset();
       bpmCounter->start();  // Show "t" immediately
     }
     
-    if (isJackConnected()) {
-      digitalWrite(CLOCK_OUT_PIN, HIGH);
-    }
-    clockState = true;
-    lastPulseTime = micros();
-    digitalWrite(LED_BEAT_PIN, HIGH);
-    ledState = true;
+    // Don't output pulse/LED here - let first clock handle it
     return;
   }
   
@@ -163,20 +152,14 @@ void SyncOut::handleStart(ClockSource source) {
   if (source == CLOCK_SOURCE_DIN && !usbIsPlaying) {
     activeSource = CLOCK_SOURCE_DIN;
     isPlaying = true;
-    ppqnCounter = 0;
+    ppqnCounter = 0;  // Ready for first clock at position 0
     
     if (bpmCounter) {
       bpmCounter->reset();
       bpmCounter->start();  // Show "t" immediately
     }
     
-    if (isJackConnected()) {
-      digitalWrite(CLOCK_OUT_PIN, HIGH);
-    }
-    clockState = true;
-    lastPulseTime = micros();
-    digitalWrite(LED_BEAT_PIN, HIGH);
-    ledState = true;
+    // Don't output pulse/LED here - let first clock handle it
   }
 }
 

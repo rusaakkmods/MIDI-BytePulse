@@ -16,45 +16,26 @@ void BPMCounter::handleBeat() {
   
   unsigned long now = millis();
   
-  // On first beat (position 0), initialize the timing
-  if (beatPosition == 0 && lastBeatTime == 0) {
-    lastBeatTime = now;
+  // On first beat (position 0), just initialize the timing and continue
+  if (beatPosition == 0) {
+    if (lastBeatTime == 0) {
+      lastBeatTime = now;  // Initialize on first beat
+    }
+    beatPosition = 1;
+    return;  // Don't calculate yet, just set up timing
   }
   
-  // Calculate BPM every 4 beats (after beat 3, before wrapping to 0)
+  // On beat 3, capture the interval for deferred calculation (no division here)
   if (beatPosition == 3) {
     if (lastBeatTime > 0) {
-      unsigned long interval = now - lastBeatTime;
-      
-      // More accurate calculation with rounding
-      // BPM = 60,000 ms/min / (interval_ms / 4 beats)
-      // = 240,000 / interval_ms
-      // Add 0.5 for rounding: (240,000 + interval/2) / interval
-      uint16_t newBPM = (240000UL + (interval / 2)) / interval;
-      
-      // Constrain to valid range: 20-400 BPM
-      newBPM = constrain(newBPM, 20, 400);
-      
-      // Update display every 4 beats if change > 2 BPM or first reading
-      if (abs((int)newBPM - (int)currentBPM) > 2 || currentBPM == 0) {
-        currentBPM = newBPM;
-        bpmNeedsUpdate = true;
-      }
-      
-      #if SERIAL_DEBUG
-      DEBUG_PRINT("Interval: ");
-      DEBUG_PRINT(interval);
-      DEBUG_PRINT("ms, BPM: ");
-      DEBUG_PRINTLN(newBPM);
-      #endif
+      capturedInterval = now - lastBeatTime;
+      bpmNeedsCalculation = true;  // Flag for main loop to calculate
+      lastBeatTime = now;  // Update for next cycle
     }
-    
-    // Update lastBeatTime for next calculation
-    lastBeatTime = now;
+    beatPosition = 0;  // Wrap to position 0
+  } else {
+    beatPosition++;  // Move to next position (1 -> 2 -> 3)
   }
-  
-  // Move to next position for next beat
-  beatPosition = (beatPosition + 1) % 4;
 }
 
 void BPMCounter::reset() {
@@ -82,6 +63,33 @@ void BPMCounter::start() {
 }
 
 void BPMCounter::update() {
+  // Calculate BPM if needed (deferred from handleBeat to avoid blocking)
+  if (bpmNeedsCalculation) {
+    // More accurate calculation with rounding
+    // BPM = 60,000 ms/min / (interval_ms / 4 beats)
+    // = 240,000 / interval_ms
+    // Add 0.5 for rounding: (240,000 + interval/2) / interval
+    uint16_t newBPM = (240000UL + (capturedInterval / 2)) / capturedInterval;
+    
+    // Constrain to valid range: 20-400 BPM
+    newBPM = constrain(newBPM, 20, 400);
+    
+    // Update display if change > 2 BPM or first reading
+    if (abs((int)newBPM - (int)currentBPM) > 2 || currentBPM == 0) {
+      currentBPM = newBPM;
+      bpmNeedsUpdate = true;
+    }
+    
+    #if SERIAL_DEBUG
+    DEBUG_PRINT("Interval: ");
+    DEBUG_PRINT(capturedInterval);
+    DEBUG_PRINT("ms, BPM: ");
+    DEBUG_PRINTLN(newBPM);
+    #endif
+    
+    bpmNeedsCalculation = false;
+  }
+  
   // Update BPM display if changed by threshold
   if (bpmNeedsUpdate && display) {
     display->showBPM(currentBPM);

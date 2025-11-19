@@ -8,7 +8,7 @@
 #include <Arduino.h>
 #include <MIDIUSB.h>
 
-#define MIDI_BUFFER_SIZE 64
+#define MIDI_BUFFER_SIZE 128  // Balanced size with 4x flush per loop
 
 class SyncOut;
 
@@ -17,17 +17,12 @@ public:
   void begin();
   void update();
   void setSyncOut(SyncOut* sync);
-  void flushBuffer();
+  static void flushBuffer();
 
 private:
   static SyncOut* syncOut;
   
-  // Ring buffer for MIDI messages
-  static midiEventPacket_t midiBuffer[MIDI_BUFFER_SIZE];
-  static volatile uint8_t bufferHead;
-  static volatile uint8_t bufferTail;
-  
-  static void bufferMessage(const midiEventPacket_t& event);
+  static void sendMessage(const midiEventPacket_t& event);
   static void forwardDINtoUSB(byte channel, byte type, byte data1, byte data2);
   
   static void handleNoteOn(byte channel, byte note, byte velocity);

@@ -68,32 +68,30 @@ void setup() {
 }
 
 void loop() {
-  // MIDI processing has highest priority - do it first and frequently
+  // Process MIDI with optimized batching
   processUSBMIDI();
   midiHandler.update();
-  
-  // Flush MIDI buffer immediately after reading to minimize latency
-  midiHandler.flushBuffer();
+  midiHandler.flushBuffer();  // Flush channel messages in batch
   
   // Time-critical sync output
   syncOut.update();
   
-  // Process more MIDI immediately to prevent buffer overflow
+  // Second pass for continuous flow
   processUSBMIDI();
   midiHandler.update();
   midiHandler.flushBuffer();
   
-  // Lower priority UI updates (only after MIDI is processed)
+  // UI updates
   transport.update();
   pots.update();
   
-  // Update beat indicator at moderate rate
+  // Update beat indicator at 100Hz
   static unsigned long lastDisplayUpdate = 0;
-  if (millis() - lastDisplayUpdate >= 10) {  // 100Hz update rate
+  if (millis() - lastDisplayUpdate >= 10) {
     bpmCounter.update();
     lastDisplayUpdate = millis();
   }
   
-  // Rapid multiplexing - update display continuously for smooth refresh
+  // Display multiplexing
   display.updateDisplay();
 }

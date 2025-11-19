@@ -10,28 +10,14 @@
 MIDI_CREATE_INSTANCE(HardwareSerial, Serial1, MIDI_DIN);
 
 SyncOut* MIDIHandler::syncOut = nullptr;
-midiEventPacket_t MIDIHandler::midiBuffer[MIDI_BUFFER_SIZE];
-volatile uint8_t MIDIHandler::bufferHead = 0;
-volatile uint8_t MIDIHandler::bufferTail = 0;
 
-void MIDIHandler::bufferMessage(const midiEventPacket_t& event) {
-  uint8_t nextHead = (bufferHead + 1) % MIDI_BUFFER_SIZE;
-  
-  // If buffer is full, skip message (shouldn't happen with proper sizing)
-  if (nextHead == bufferTail) {
-    return;
-  }
-  
-  midiBuffer[bufferHead] = event;
-  bufferHead = nextHead;
+void MIDIHandler::sendMessage(const midiEventPacket_t& event) {
+  // Send immediately without buffering
+  MidiUSB.sendMIDI(event);
 }
 
 void MIDIHandler::flushBuffer() {
-  // Send all buffered messages
-  while (bufferTail != bufferHead) {
-    MidiUSB.sendMIDI(midiBuffer[bufferTail]);
-    bufferTail = (bufferTail + 1) % MIDI_BUFFER_SIZE;
-  }
+  // Single flush call for batched channel messages
   MidiUSB.flush();
 }
 
@@ -70,7 +56,8 @@ void MIDIHandler::forwardDINtoUSB(byte channel, byte type, byte data1, byte data
   event.byte2 = data1;
   event.byte3 = data2;
   
-  bufferMessage(event);
+  sendMessage(event);
+  // Note: Main loop flushes in batches for efficiency
 }
 
 void MIDIHandler::handleNoteOn(byte channel, byte note, byte velocity) {
@@ -118,13 +105,15 @@ void MIDIHandler::handleSystemExclusive(byte* data, unsigned size) {
       else event.header = 0x07;
     }
     
-    bufferMessage(event);
+    sendMessage(event);
   }
+  MidiUSB.flush();  // Flush after complete sysex
 }
 
 void MIDIHandler::handleClock() {
+  // Send clock immediately without buffering (time-critical, high frequency)
   midiEventPacket_t event = {0x0F, 0xF8, 0, 0};
-  bufferMessage(event);
+  MidiUSB.sendMIDI(event);
   
   if (syncOut) {
     syncOut->handleClock(CLOCK_SOURCE_DIN);
@@ -132,8 +121,10 @@ void MIDIHandler::handleClock() {
 }
 
 void MIDIHandler::handleStart() {
+  // Send start immediately without buffering
   midiEventPacket_t event = {0x0F, 0xFA, 0, 0};
-  bufferMessage(event);
+  MidiUSB.sendMIDI(event);
+  MidiUSB.flush();
   
   if (syncOut) {
     syncOut->handleStart(CLOCK_SOURCE_DIN);
@@ -141,8 +132,10 @@ void MIDIHandler::handleStart() {
 }
 
 void MIDIHandler::handleContinue() {
+  // Send continue immediately without buffering
   midiEventPacket_t event = {0x0F, 0xFB, 0, 0};
-  bufferMessage(event);
+  MidiUSB.sendMIDI(event);
+  MidiUSB.flush();
   
   if (syncOut) {
     syncOut->handleStart(CLOCK_SOURCE_DIN);
@@ -150,8 +143,13 @@ void MIDIHandler::handleContinue() {
 }
 
 void MIDIHandler::handleStop() {
+  // Flush all pending messages before stopping
+  flushBuffer();
+  
+  // Send stop immediately
   midiEventPacket_t event = {0x0F, 0xFC, 0, 0};
-  bufferMessage(event);
+  MidiUSB.sendMIDI(event);
+  MidiUSB.flush();
   
   if (syncOut) {
     syncOut->handleStop(CLOCK_SOURCE_DIN);
@@ -159,11 +157,14 @@ void MIDIHandler::handleStop() {
 }
 
 void MIDIHandler::handleActiveSensing() {
+  // Send immediately without buffering (realtime message)
   midiEventPacket_t event = {0x0F, 0xFE, 0, 0};
-  bufferMessage(event);
+  MidiUSB.sendMIDI(event);
 }
 
 void MIDIHandler::handleSystemReset() {
+  // Send immediately without buffering (realtime message)
   midiEventPacket_t event = {0x0F, 0xFF, 0, 0};
-  bufferMessage(event);
+  MidiUSB.sendMIDI(event);
+  MidiUSB.flush();
 }

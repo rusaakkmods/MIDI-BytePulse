@@ -24,10 +24,12 @@ public:
 private:
   uint8_t beatPosition = 0;  // Track beat position (0-3) for calculation timing
   unsigned long lastBeatTime = 0;
+  unsigned long capturedInterval = 0;  // Captured interval for deferred calculation
   unsigned long beatOnTime = 0;
   bool beatIsOn = false;
   bool beatNeedsOn = false;   // Flag to turn on beat in main loop
   bool beatNeedsOff = false;  // Flag to turn off beat in main loop
+  bool bpmNeedsCalculation = false;  // Flag to calculate BPM in main loop
   uint16_t currentBPM = 0;
   uint16_t displayedBPM = 0;  // Track what BPM is currently shown
   uint16_t pendingBPM = 0;    // Pending BPM to display
