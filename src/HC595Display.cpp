@@ -25,6 +25,7 @@ const uint8_t HC595Display::DIGIT_PATTERNS[10] = {
 const uint8_t HC595Display::CHAR_T = 0x87;  // 't' (segments D,E,F,G)
 const uint8_t HC595Display::CHAR_V = 0xE3;  // 'u' (segments C,D,E) - lower u shape
 const uint8_t HC595Display::CHAR_P = 0x8C;  // 'P' (segments A,B,E,F,G)
+const uint8_t HC595Display::CHAR_N = 0xAB;  // 'n' (segments C,E,G) - inverted from 0x54
 const uint8_t HC595Display::CHAR_DASH = 0xBF;  // '-' (segment G only)
 
 HC595Display::HC595Display(uint8_t latchPin) 
@@ -139,6 +140,31 @@ void HC595Display::showPitch(uint8_t pitch) {
         _displayBuffer[1] = DIGIT_PATTERNS[pitch / 100];
         _displayBuffer[2] = DIGIT_PATTERNS[(pitch / 10) % 10];
         _displayBuffer[3] = DIGIT_PATTERNS[pitch % 10];
+    }
+}
+
+void HC595Display::showModulation(uint8_t mod) {
+    if (mod > 127) mod = 127;  // MIDI max
+    
+    // First digit shows "n" for modulation
+    _displayBuffer[0] = CHAR_N;
+    
+    // Right-align the modulation value in remaining 3 digits
+    if (mod < 10) {
+        // Single digit: "n  X"
+        _displayBuffer[1] = 0xFF;  // Blank
+        _displayBuffer[2] = 0xFF;  // Blank
+        _displayBuffer[3] = DIGIT_PATTERNS[mod];
+    } else if (mod < 100) {
+        // Two digits: "n XX"
+        _displayBuffer[1] = 0xFF;  // Blank
+        _displayBuffer[2] = DIGIT_PATTERNS[mod / 10];
+        _displayBuffer[3] = DIGIT_PATTERNS[mod % 10];
+    } else {
+        // Three digits: "nXXX"
+        _displayBuffer[1] = DIGIT_PATTERNS[mod / 100];
+        _displayBuffer[2] = DIGIT_PATTERNS[(mod / 10) % 10];
+        _displayBuffer[3] = DIGIT_PATTERNS[mod % 10];
     }
 }
 

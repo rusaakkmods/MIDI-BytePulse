@@ -19,6 +19,7 @@ public:
     void showStopped();          // Show "-" when stopped
     void showVolume(uint8_t volume);  // Show volume with "v" prefix
     void showPitch(uint8_t pitch);    // Show pitch with "P" prefix
+    void showModulation(uint8_t mod); // Show modulation with "n" prefix
     
     // Beat indicator
     void setDecimalPoint(uint8_t position, bool on);
@@ -36,6 +37,7 @@ private:
     static const uint8_t CHAR_T;     // 't' character
     static const uint8_t CHAR_V;     // 'v' character  
     static const uint8_t CHAR_P;     // 'P' character
+    static const uint8_t CHAR_N;     // 'n' character (flipped u)
     static const uint8_t CHAR_DASH;  // '-' character
     
     void shiftOutBitBang(uint8_t data);

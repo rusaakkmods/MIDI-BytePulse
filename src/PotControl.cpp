@@ -66,6 +66,20 @@ void PotControl::update() {
       }
     }
   }
+  
+  // Check if modulation display timeout expired
+  if (modulationDisplayActive && display && bpmCounter) {
+    if (now - modulationDisplayTime >= CONTROL_DISPLAY_DURATION) {
+      modulationDisplayActive = false;
+      // Restore appropriate display based on play state
+      if (bpmCounter->getBPM() > 0) {
+        display->showBPM(bpmCounter->getBPM());
+      } else {
+        display->showStopped();
+        display->setDecimalPoint(3, true);  // Show decimal when stopped
+      }
+    }
+  }
 }
 
 void PotControl::readVolume() {
@@ -75,12 +89,13 @@ void PotControl::readVolume() {
     lastVolume = reading;
     sendCC(CC_VOLUME, lastVolume);
     
-    // Show volume on display for 2 seconds, override pitch if active
+    // Show volume on display for 2 seconds, override other controls
     if (display) {
       display->showVolume(lastVolume);
       volumeDisplayActive = true;
       volumeDisplayTime = millis();
-      pitchDisplayActive = false;  // Override pitch display
+      pitchDisplayActive = false;  // Override other displays
+      modulationDisplayActive = false;
       
       // Set decimal based on play state
       if (bpmCounter && bpmCounter->isPlaying()) {
@@ -104,12 +119,13 @@ void PotControl::readPitch() {
     // Convert pitch bend to 0-127 for display
     uint8_t displayValue = map(lastPitch, 0, 1023, 0, 127);
     
-    // Show pitch on display for 2 seconds, override volume if active
+    // Show pitch on display for 2 seconds, override other controls
     if (display) {
       display->showPitch(displayValue);
       pitchDisplayActive = true;
       pitchDisplayTime = millis();
-      volumeDisplayActive = false;  // Override volume display
+      volumeDisplayActive = false;  // Override other displays
+      modulationDisplayActive = false;
       
       // Set decimal based on play state
       if (bpmCounter && bpmCounter->isPlaying()) {
@@ -128,6 +144,23 @@ void PotControl::readModulation() {
   if (abs(reading - lastModulation) > THRESHOLD_7BIT) {
     lastModulation = reading;
     sendCC(CC_MODULATION, lastModulation);
+    
+    // Show modulation on display for 2 seconds, override other controls
+    if (display) {
+      display->showModulation(lastModulation);
+      modulationDisplayActive = true;
+      modulationDisplayTime = millis();
+      volumeDisplayActive = false;  // Override other displays
+      pitchDisplayActive = false;
+      
+      // Set decimal based on play state
+      if (bpmCounter && bpmCounter->isPlaying()) {
+        // Blinking will be handled by beat indicator in bpmCounter
+      } else {
+        // Turn off decimal when stopped
+        display->setDecimalPoint(3, false);
+      }
+    }
   }
 }
 
