@@ -12,7 +12,7 @@
 // FEATURE FLAGS
 // ============================================================================
 
-#define ENABLE_DISPLAY      1    // Set to 0 to disable OLED display (saves flash)
+#define ENABLE_DISPLAY      0    // Set to 0 to disable OLED display (saves flash)
 #define TEST_MODE           0    // Set to 1 to enable test mode (display only)
 #define MIDI_FORWARD_ONLY   0    // Set to 1 for pure MIDI forwarding (no display, no controls)
 #define SERIAL_DEBUG        false  // Enable serial debug to check MIDI forwarding

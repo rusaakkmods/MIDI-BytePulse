@@ -33,12 +33,9 @@ void MidiHandler::begin() {
     Serial1.begin(MIDI_BAUD_RATE);
     midiDIN.begin(MIDI_CHANNEL_OMNI);
     
-    // Set up clock and transport handlers only (not message forwarding)
-    midiDIN.setHandleClock(handleDINClock);
-    midiDIN.setHandleStart(handleDINStart);
-    midiDIN.setHandleContinue(handleDINContinue);
-    midiDIN.setHandleStop(handleDINStop);
-    midiDIN.setHandleSystemReset(handleDINSystemReset);
+    // Disable all DIN MIDI clock/transport handlers
+    // We ONLY use USB MIDI for clock/transport
+    // DIN MIDI is only for data messages (notes, CC, etc.)
     
     midiDIN.turnThruOff();
     
@@ -52,12 +49,8 @@ void MidiHandler::update() {
     static uint8_t dataCount = 0;
     static uint8_t expectedBytes = 0;
     
-    bool needsFlush = false;
-    uint8_t messagesProcessed = 0;
-    const uint8_t MAX_MESSAGES_PER_UPDATE = 32;  // Process up to 32 messages per call
-    
-    // Process all available bytes quickly to prevent buffer overflow
-    while (Serial1.available() > 0 && messagesProcessed < MAX_MESSAGES_PER_UPDATE) {
+    // Process ALL available bytes - no limit to prevent buffer overflow
+    while (Serial1.available() > 0) {
         uint8_t b = Serial1.read();
         
         // Status byte detection (bit 7 = 1)
@@ -69,14 +62,46 @@ void MidiHandler::update() {
             
             // Determine expected data bytes
             if (messageType == 0xF0) {
-                // System messages - handle immediately
+                // System messages
                 if (statusByte == 0xF8 || statusByte == 0xFA || 
                     statusByte == 0xFB || statusByte == 0xFC) {
-                    // Clock/Transport - process via MIDI Library for clock sync
-                    // These are handled by DIN handlers, just forward to USB
+                    // Clock/Transport messages from DIN MIDI - forward to USB
                     MidiUSB.sendMIDI({0x0F, statusByte, 0, 0});
-                    needsFlush = true;
-                    messagesProcessed++;
+                    MidiUSB.flush();  // Flush immediately for timing
+                    
+                    // Also process for sync output and beat LED
+                    if (statusByte == 0xF8) {
+                        // Clock pulse
+                        if (!_isPlaying) {
+                            _isPlaying = true;
+                            _clockCount = 0;
+                            _lastClockTime = 0;
+                            _clocksSinceLastBeat = 0;
+                            if (_clockSync) {
+                                _clockSync->onTransportStart();
+                            }
+                        }
+                        _clockCount++;
+                        _clocksSinceLastBeat++;
+                        if (_clockSync) {
+                            _clockSync->onMidiClock();
+                        }
+                    } else if (statusByte == 0xFA) {
+                        // Start
+                        _isPlaying = true;
+                        _clockCount = 0;
+                        _lastClockTime = 0;
+                        _clocksSinceLastBeat = 0;
+                        if (_clockSync) {
+                            _clockSync->onTransportStart();
+                        }
+                    } else if (statusByte == 0xFC) {
+                        // Stop
+                        _isPlaying = false;
+                        if (_clockSync) {
+                            _clockSync->onTransportStop();
+                        }
+                    }
                 }
                 statusByte = 0;
                 expectedBytes = 0;
@@ -93,15 +118,14 @@ void MidiHandler::update() {
                 dataCount++;
                 
                 if (expectedBytes == 1) {
-                    // 2-byte message complete
+                    // 2-byte message complete - send immediately
                     uint8_t cin = (statusByte & 0xF0) == 0xC0 ? 0x0C : 0x0D;
                     MidiUSB.sendMIDI({cin, statusByte, dataByte1, 0});
-                    needsFlush = true;
-                    messagesProcessed++;
+                    MidiUSB.flush();  // Flush immediately
                     statusByte = 0;
                 }
             } else if (dataCount == 1 && expectedBytes == 2) {
-                // 3-byte message complete
+                // 3-byte message complete - send immediately
                 uint8_t cin;
                 uint8_t msgType = statusByte & 0xF0;
                 
@@ -116,23 +140,17 @@ void MidiHandler::update() {
                 
                 if (cin != 0x00) {
                     MidiUSB.sendMIDI({cin, statusByte, dataByte1, b});
-                    needsFlush = true;
-                    messagesProcessed++;
+                    MidiUSB.flush();  // Flush immediately
                 }
                 statusByte = 0;
             }
         }
     }
     
-    // Single flush after batch processing
-    if (needsFlush) {
-        MidiUSB.flush();
-    }
+    // No need to call midiDIN.read() - we're not using DIN handlers
+    // DIN messages are read directly via Serial1 above
     
-    // Process MIDI Library for clock/transport messages only
-    midiDIN.read();
-    
-    // Process incoming USB MIDI messages
+    // Process incoming USB MIDI messages (clock/transport only)
     handleUSBMidi();
     
     // Update active clock source based on activity
@@ -249,63 +267,34 @@ void MidiHandler::handleUSBMidi() {
 }
 
 void MidiHandler::processUSBMidiEvent(midiEventPacket_t event) {
-    // Store last received message for debugging
-    _lastMidiStatus = event.byte1;
-    _lastMidiData1 = event.byte2;
-    _lastMidiData2 = event.byte3;
+    // ONLY process MIDI Clock (0xF8) from USB MIDI
+    // Ignore transport and all other messages
     
-    // Check if this is a clock/transport message
-    switch (event.byte1) {
-        case 0xF8:  // MIDI Clock
-            _lastUSBClockTime = millis();
-            
-            _clockCount++;
-            _clocksSinceLastBeat++;
-            updateBPM();
-            
-            // Forward clock pulse to sync output
-            if (_clockSync && _isPlaying) {
-                _clockSync->onMidiClock();
-            }
-            break;
-            
-        case 0xFA:  // Start
-            _lastUSBClockTime = millis();
+    if (event.byte1 == 0xF8) {
+        // MIDI Clock only
+        _lastUSBClockTime = millis();
+        
+        // Auto-start when clock detected
+        if (!_isPlaying) {
             _isPlaying = true;
             _clockCount = 0;
             _lastClockTime = 0;
             _clocksSinceLastBeat = 0;
-            
             if (_clockSync) {
                 _clockSync->onTransportStart();
             }
-            DEBUG_PRINTLN("USB Start");
-            break;
-            
-        case 0xFB:  // Continue
-            _lastUSBClockTime = millis();
-            _isPlaying = true;
-            
-            if (_clockSync) {
-                _clockSync->onTransportContinue();
-            }
-            DEBUG_PRINTLN("USB Cont");
-            break;
-            
-        case 0xFC:  // Stop
-            _lastUSBClockTime = millis();
-            _isPlaying = false;
-            
-            if (_clockSync) {
-                _clockSync->onTransportStop();
-            }
-            DEBUG_PRINTLN("USB Stop");
-            break;
-            
-        default:
-            // Other MIDI messages (notes, CC, etc.) - already forwarded in update()
-            break;
+        }
+        
+        _clockCount++;
+        _clocksSinceLastBeat++;
+        updateBPM();
+        
+        // Forward clock pulse to sync output
+        if (_clockSync) {
+            _clockSync->onMidiClock();
+        }
     }
+    // All other messages ignored
 }
 
 // ============================================================================

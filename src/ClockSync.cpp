@@ -71,14 +71,8 @@ void ClockSync::onMidiClock() {
         // Generate pulse (cable detection ignored for now)
         setPulseHigh();
         _pulseCount++;
-    }
-    
-    // Pulse beat LED every quarter note (24 MIDI clocks)
-    _beatClockCounter++;
-    if (_beatClockCounter >= MIDI_CLOCKS_PER_QN) {
-        _beatClockCounter = 0;
         
-        // Turn on beat LED
+        // Also pulse beat LED at the same rate as sync output for visual confirmation
         _beatLedActive = true;
         _beatLedStartTime = millis();
         digitalWrite(LED_BEAT_PIN, HIGH);
