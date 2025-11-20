@@ -92,21 +92,18 @@ void Display::setBPM(uint16_t bpm) {
     currentBPM = bpm;
   }
   
+  // Mark as playing - triggers different animation
+  isPlaying = true;
+  isIdle = false;
+  
   // Don't display BPM - keep display blank during playback
   // BPM calculation still runs in background for potential future use
 }
 
 void Display::showPlay() {
-  // Show "PLaY" briefly when start detected
-  if (ledModule) {
-    showingMIDIMessage = true;
-    midiMessageTime = millis();
-    isIdle = false;  // Temporarily override state to show message
-    ledModule->setPatternAt(0, 0b01110011);  // P
-    ledModule->setPatternAt(1, 0b00111000);  // L
-    ledModule->setPatternAt(2, 0b01011111);  // a (8 without top-left segment)
-    ledModule->setPatternAt(3, 0b01101110);  // Y
-  }
+  // Don't show "PLaY" - just mark as playing for animation
+  isPlaying = true;
+  isIdle = false;
 }
 
 void Display::showStop() {
@@ -185,6 +182,7 @@ void Display::clear() {
   if (ledModule) {
     // Start idle animation
     isIdle = true;
+    isPlaying = false;
     idleAnimFrame = 0;
     lastIdleAnimTime = millis();
     currentBPM = 0;
@@ -216,24 +214,56 @@ void Display::flush() {
       
       // Only animate if not showing MIDI message
       if (!showingMIDIMessage) {
-        // Rotating segments animation (6 frames)
-        const uint8_t rotatePattern[6] = {
+        // Complex chaotic pattern (16 frames) - IDLE pattern
+        const uint8_t chaoticPattern[16] = {
           0b00000001,  // Top
-          0b00000010,  // Top right
-          0b00000100,  // Bottom right
+          0b00100001,  // Top + top-left
+          0b00100000,  // Top-left
+          0b00110000,  // Top-left + bottom-left
+          0b00010000,  // Bottom-left
+          0b00011000,  // Bottom-left + bottom
           0b00001000,  // Bottom
-          0b00010000,  // Bottom left
-          0b00100000   // Top left
+          0b00001100,  // Bottom + bottom-right
+          0b00000100,  // Bottom-right
+          0b00000110,  // Bottom-right + top-right
+          0b00000010,  // Top-right
+          0b01000010,  // Top-right + middle
+          0b01000000,  // Middle
+          0b01100000,  // Middle + top-left
+          0b01010000,  // Middle + bottom-left
+          0b01001000   // Middle + bottom
         };
         
-        // Show rotating pattern on all 4 digits with offset
+        // Show chaotic pattern on all 4 digits with different offsets
         for (int i = 0; i < 4; i++) {
-          uint8_t frame = (idleAnimFrame + i) % 6;
-          ledModule->setPatternAt(i, rotatePattern[frame]);
+          uint8_t frame = (idleAnimFrame + (i * 4)) % 16;  // Each digit 4 steps offset
+          ledModule->setPatternAt(i, chaoticPattern[frame]);
         }
         
-        idleAnimFrame = (idleAnimFrame + 1) % 6;
+        idleAnimFrame = (idleAnimFrame + 1) % 16;
       }
+    }
+    
+    // Handle playing animation (different pattern)
+    if (isPlaying && !isIdle && !showingMIDIMessage && (unsigned long)(now - lastIdleAnimTime) >= 100) {
+      lastIdleAnimTime = now;
+      
+      // Single rotating pattern shared by all digits - PLAYING pattern
+      // Each frame has 2 LEDs that are NOT adjacent (opposite sides)
+      const uint8_t rotatePattern[4] = {
+        0b00000101,  // Top + bottom-right (opposite corners)
+        0b00001010,  // Top-right + bottom (opposite corners)
+        0b00010100,  // Bottom-right + bottom-left (opposite sides)
+        0b00101000   // Top-left + bottom (opposite corners)
+      };
+      
+      // All digits use same pattern but start at different positions
+      for (int i = 0; i < 4; i++) {
+        uint8_t frame = (idleAnimFrame + i) % 4;  // Each digit offset by 1
+        ledModule->setPatternAt(i, rotatePattern[frame]);
+      }
+      
+      idleAnimFrame = (idleAnimFrame + 1) % 4;
     }
   }
 }

@@ -29,6 +29,7 @@ private:
   uint16_t currentBPM = 0;
   unsigned long lastFlushTime = 0;
   bool isIdle = false;
+  bool isPlaying = false;
   unsigned long lastIdleAnimTime = 0;
   uint8_t idleAnimFrame = 0;
   unsigned long midiMessageTime = 0;
