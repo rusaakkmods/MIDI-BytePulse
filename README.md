@@ -1,328 +1,400 @@
-# MIDI BytePulse — Universal MIDI Clock Converter
+# rMODS MIDI BytePulse
 
-**Firmware for Pro Micro USB MIDI Sync Box (v1.0)**
+**Universal MIDI Clock Sync Box** - Multi-source MIDI clock synchronization with analog sync I/O, BPM display, and intelligent source switching.
 
-A USB class-compliant MIDI interface and clock converter that bridges the gap between your DAW, hardware synthesizers, and modular gear. Built for the SparkFun Pro Micro (ATmega32U4, 5V, 16MHz).
-
----
-
-## 🎯 Overview
-
-MIDI BytePulse is a **universal MIDI clock follower/converter** that intelligently routes MIDI clock from either USB (DAW) or DIN MIDI IN (hardware) to generate clean analog sync pulses for vintage gear, Volcas, Teenage Engineering devices, and modular synthesizers.
-
-### Key Features
-
-- **Dual Clock Sources**
-  - USB MIDI (from DAW/host computer)
-  - DIN MIDI IN (from any hardware sequencer, drum machine, or synth)
-  - Intelligent auto-switching with priority control
-  
-- **Analog Clock Sync Output**
-  - 0–5V pulses via protected open-collector transistor
-  - Configurable PPQN (1-24, default 2 for Korg/Arturia compatibility)
-  - Cable plug detection (only generates pulses when connected)
-  
-- **MIDI Control Interface**
-  - 3 analog pots sending MIDI CC (Volume, Cutoff, Resonance)
-  - Transport control buttons (Play/Pause, Stop)
-  - Rotary encoder for menu navigation and parameter control
-  
-- **Visual Feedback**
-  - 0.96" OLED display (128×64 SSD1306)
-  - Real-time BPM display
-  - Active clock source indicator
-  - Beat LED (pulses on quarter notes)
-  - Power LED
-  
-- **Configuration**
-  - EEPROM persistence (settings survive power cycles)
-  - Menu system for clock source, PPQN, and MIDI channel
-  - Auto-timeout menu
+[![Platform](https://img.shields.io/badge/platform-ATmega32U4-blue.svg)](https://www.sparkfun.com/products/12640)
+[![Framework](https://img.shields.io/badge/framework-Arduino-00979D.svg)](https://www.arduino.cc/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ---
 
-##  Project Structure
+## 🎵 Features
 
+### Multi-Source Clock Support
+- **USB MIDI Clock** - Computer/DAW sync via native USB MIDI
+- **DIN MIDI Clock** - Hardware MIDI IN port (5-pin DIN)
+- **Analog Sync Input** - Compatible with modular/eurorack gear (3.5mm jack)
+- **Intelligent Source Switching** - Automatically selects active clock source with priority management
+
+### Clock Distribution
+- **USB MIDI Clock Output** - Send sync to DAW/software
+- **DIN MIDI Clock Output** - Hardware MIDI OUT (5-pin DIN)
+- **Analog Sync Output** - Trigger output for modular/analog gear (3.5mm jack)
+- **Cable Detection** - Automatically enables/disables outputs based on connected cables
+
+### Display & Monitoring
+- **4-Digit 7-Segment Display** (TM1637)
+- **Real-time BPM Calculation** - Accurate tempo detection from any source
+- **Clock Animation** - Rotating pattern shows clock activity
+- **Beat Position Indicator** - Decimal points show quarter note positions (1-4)
+- **Push Button BPM Display** - Hold button to view current tempo ("t.###")
+- **Idle Display** - Shows "IdLE" when no clock is detected
+
+### MIDI Message Handling
+- **Full MIDI Passthrough** - All MIDI messages forwarded between USB ↔ DIN
+- **Standard Clock Messages** - Start (0xFA), Stop (0xFC), Continue (0xFB), Clock (0xF8)
+- **Active Sensing** - Automatic timeout detection for USB sources
+- **No Latency** - Optimized for real-time performance with zero blocking delays
+
+---
+
+## 🔧 Hardware
+
+### Platform
+- **SparkFun Pro Micro** (ATmega32U4, 5V, 16MHz)
+- Native USB MIDI support (no FTDI required)
+- 28KB Flash / 2.5KB RAM
+
+### Pin Configuration
+
+| Pin | Function | Description |
+|-----|----------|-------------|
+| 0 | MIDI IN | Hardware Serial RX (5-pin DIN) |
+| 1 | MIDI OUT | Hardware Serial TX (5-pin DIN) |
+| 5 | SYNC OUT | Analog clock output (3.5mm jack) |
+| 4 | SYNC OUT DETECT | Cable detection for sync output |
+| 7 | SYNC IN | Analog clock input (3.5mm jack) |
+| 6 | SYNC IN DETECT | Cable detection for sync input |
+| 8 | DISPLAY CLK | TM1637 clock line |
+| 9 | DISPLAY DIO | TM1637 data line |
+| 10 | LED (future) | Beat indicator LED |
+| 16 | BUTTON | BPM display button (INPUT_PULLUP) |
+
+### Connections
+
+**MIDI (5-pin DIN):**
+- Standard MIDI circuit with 220Ω resistors and 6N138 optocoupler
+- IN: Pin 0 (RX1) via optocoupler
+- OUT: Pin 1 (TX1) via 220Ω resistor
+
+**Analog Sync (3.5mm mono jacks):**
+- INPUT: Pin 7 (interrupt-capable), 5V trigger signal
+- OUTPUT: Pin 5 (direct digital output), 5V trigger pulses
+- Cable detection via switched jacks to pins 4 & 6
+
+**Display (TM1637 4-digit):**
+- CLK: Pin 8
+- DIO: Pin 9
+- VCC: 5V
+- GND: GND
+
+**Button:**
+- One side to Pin 16
+- Other side to GND
+- Internal pullup enabled (no external resistor needed)
+
+---
+
+## ⚙️ Technical Specifications
+
+### Timing & Synchronization
+- **PPQN Resolution:** 24 PPQN (Pulses Per Quarter Note) - MIDI standard
+- **BPM Range:** 30-300 BPM (auto-calculated)
+- **Clock Accuracy:** Microsecond-precision interrupt handling
+- **Latency:** <1ms typical (non-blocking architecture)
+
+### Clock Source Priority
+1. **Sync Input** - Highest priority (modular/analog gear)
+2. **DIN MIDI** - Hardware MIDI IN port
+3. **USB MIDI** - Computer/DAW (with 3-second timeout)
+
+When multiple sources are active, the device automatically switches to the highest priority source.
+
+### Memory Usage
+- **Flash:** ~16.9 KB / 28 KB (59%)
+- **RAM:** ~1.5 KB / 2.5 KB (59%)
+- **Build Optimizations:** LTO, function/data sections, relaxed linking
+
+---
+
+## 📋 Usage
+
+### Basic Operation
+
+**Power On:**
+- Display shows "IdLE" when no clock is detected
+- Device automatically detects connected cables
+
+**Clock Playback:**
+1. Connect a clock source (USB MIDI from DAW, DIN MIDI, or analog sync)
+2. Start playback from your source device
+3. Display shows rotating animation synchronized to clock
+4. Decimal points indicate beat positions (1.2.3.4.)
+5. All connected outputs receive synchronized clock
+
+**View BPM:**
+- Press and hold the button
+- Display shows "t.###" (e.g., "t.120" for 120 BPM)
+- Release button to return to normal display
+- If no clock detected, shows "IdLE" while held
+
+**Clock Stopping:**
+- Stop playback on source device
+- Display clears and returns to "IdLE"
+- All outputs stop sending clock
+
+### Connection Scenarios
+
+**Scenario 1: DAW → MIDI BytePulse → Hardware Synth**
 ```
-├── platformio.ini           # PlatformIO configuration & dependencies
-├── include/
-│   ├── config.h            # Pin definitions, constants, clock source enum
-│   ├── MidiHandler.h       # MIDI I/O (USB + DIN), clock routing
-│   ├── ClockSync.h         # Analog clock pulse generation
-│   ├── Controls.h          # Pots, encoder, buttons with debouncing
-│   ├── Display.h           # OLED UI and menu system
-│   └── Settings.h          # EEPROM persistence
-└── src/
-    ├── main.cpp            # Main application logic
-    ├── MidiHandler.cpp     # Dual MIDI source implementation
-    ├── ClockSync.cpp       # Clock pulse timing & cable detection
-    ├── Controls.cpp        # Input handling with noise filtering
-    ├── Display.cpp         # UI rendering & menu navigation
-    └── Settings.cpp        # EEPROM read/write with validation
+Computer (USB MIDI) → BytePulse → DIN MIDI OUT → Synth
 ```
+- Synth receives standard 24 PPQN MIDI clock
+- BPM adjustments in DAW reflected immediately
+- All MIDI notes/CC messages pass through
 
----
-
-## ⚙️ Clock Source Modes
-
-### 🔄 AUTO (Default)
-Automatically selects the active clock source with USB priority.
-
-**Behavior:**
-- USB MIDI clock detected → switches to USB
-- No USB clock for 3 seconds → switches to DIN MIDI
-- No clocks from either source → idle
-
-**Use case:** Flexible studio setup where you switch between DAW and hardware sequencers.
-
-### 🖥️ FORCE USB
-Only accepts MIDI clock from USB (ignores DIN MIDI clock).
-
-**Use case:** DAW is always the master, DIN MIDI IN used only for note/CC data.
-
-### 🎹 FORCE DIN
-Only accepts MIDI clock from DIN MIDI IN (ignores USB MIDI clock).
-
-**Use case:** External hardware sequencer is the master clock source.
-
----
-
-## 🎛️ MIDI CC Assignments
-
-| Control      | Pin  | MIDI CC | Description           |
-|--------------|------|---------|-----------------------|
-| Volume (RV1) | A0   | CC7     | Main Volume           |
-| Cutoff (RV2) | A1   | CC74    | Brightness/Filter     |
-| Resonance (RV3) | A2 | CC71   | Resonance/Timbre      |
-
-All CC messages are sent via USB MIDI to the host DAW.
-
----
-
-## 🎮 Controls
-
-### Buttons
-- **Function** (D4) - Enter/exit configuration menu
-- **Play/Pause** (D5) - Send MIDI Start/Continue/Stop to all outputs
-- **Stop** (D7) - Send MIDI Stop to all outputs
-
-### Rotary Encoder
-- **Rotate** - Navigate menu items, adjust values
-- **Press** - Select menu item, confirm value changes
-
-### Potentiometers
-- **Volume, Cutoff, Resonance** - Real-time MIDI CC control
-- Noise filtering with 3-count ADC deadzone
-- Sends CC only when value actually changes
-
----
-
-## 📺 Display Modes
-
-### Main Screen
+**Scenario 2: Beatstep Pro → MIDI BytePulse → DAW**
 ```
-PLAY 120 BPM
-USB              [●]  ← Cable indicator
-PPQN:2  Pulses:48
-Vol:64  Cut:82
-Res:45
+Beatstep Pro (clock out) → Sync IN → BytePulse → USB MIDI → DAW
 ```
+- Beatstep tempo controls DAW
+- DAW locks to external hardware tempo
+- Analog clock converted to standard MIDI clock (24 PPQN)
 
-Shows:
-- Transport state (PLAY/STOP)
-- Current BPM
-- Active clock source (USB/DIN/---)
-- PPQN setting
-- Pulse count
-- Pot values
-- Cable insertion status
-
-### Menu System
+**Scenario 3: Modular → MIDI BytePulse → Multiple Destinations**
 ```
--- MENU --
-> PPQN      [2]
-  Clock     AUTO
-  MIDI Ch   1
-  Exit
+Eurorack Clock → Sync IN → BytePulse → USB MIDI + DIN MIDI + Sync OUT
 ```
+- Single modular clock source drives everything
+- MIDI devices receive standard clock
+- Additional modular gear gets buffered sync signal
 
-Items:
-- **PPQN** - Clock pulses per quarter note (1-24)
-- **Clock** - Source selection (AUTO/USB/DIN)
-- **MIDI Ch** - MIDI channel (1-16)
-- **Exit** - Return to main screen
+**Scenario 4: DAW → MIDI BytePulse → Modular**
+```
+DAW (USB MIDI) → BytePulse → Sync OUT → Eurorack
+```
+- Software tempo controls modular setup
+- 24 PPQN MIDI clock converted to trigger pulses
+- Modular oscillators/sequencers sync to DAW
 
-Auto-exits after 5 seconds of inactivity.
+### MIDI Implementation
+
+**Transmitted Messages:**
+- `0xF8` - Clock (24 per quarter note)
+- `0xFA` - Start
+- `0xFC` - Stop
+- `0xFB` - Continue
+- `0xFE` - Active Sensing (USB only)
+- All note/CC/program change messages (passthrough)
+
+**Received Messages:**
+- All standard MIDI messages received and processed
+- Clock messages trigger sync engine
+- Non-clock messages forwarded between USB ↔ DIN
 
 ---
 
-## 🔌 Pin Configuration
-
-See `include/config.h` for complete pin definitions.
-
-**Critical Pins:**
-- **D0 (RX1)** - DIN MIDI IN (via 6N138 optocoupler)
-- **D6** - Clock sync OUT (via transistor)
-- **D16** - Sync cable plug detection
-- **A0, A1, A2** - Potentiometers (Volume, Cutoff, Resonance)
-- **D2, D3** - Encoder A/B
-- **D9** - Encoder button
-- **D4, D5, D7** - Function, Play, Stop buttons
-- **D8** - Beat LED
-- **A4 (SDA), A5 (SCL)** - I2C OLED display
-
----
-
-## 🚀 Building & Uploading
+## 🛠️ Building & Flashing
 
 ### Prerequisites
-- [PlatformIO](https://platformio.org/) (via VSCode or CLI)
-- SparkFun Pro Micro drivers installed
+- [PlatformIO](https://platformio.org/) (recommended) or Arduino IDE
+- SparkFun Pro Micro board definitions
+- USB cable (micro-USB)
 
-### Build Commands
+### Dependencies
+All dependencies auto-installed via PlatformIO:
+```ini
+- MIDI Library v5.0.2 (fortyseveneffects)
+- MIDIUSB v1.0.5 (Arduino)
+- AceSegment v0.13.0 (Brian Park)
+```
+
+### Build & Upload
+
+**Using PlatformIO:**
 ```bash
-# Compile firmware
+# Build project
 pio run
 
-# Upload to Pro Micro
+# Upload to device
 pio run --target upload
 
-# Open serial monitor (if DEBUG enabled)
+# Monitor serial output (debug mode)
 pio device monitor
 ```
 
+**Using PlatformIO IDE (VS Code):**
+1. Open project folder in VS Code
+2. Click "Build" (✓) in status bar
+3. Click "Upload" (→) in status bar
+
 ### Debug Mode
-Set `SERIAL_DEBUG` to `true` in `include/config.h` to enable serial debugging at 115200 baud.
+Enable serial debugging in `config.h`:
+```cpp
+#define SERIAL_DEBUG    true
+#define DEBUG_BAUD_RATE 115200
+```
+- Prints BPM changes to Serial Monitor
+- Threshold: >2 BPM change for logging
+- Auto-timeout: Waits 3 seconds for serial connection
 
 ---
 
-## 🧠 Firmware Architecture
+## 🎛️ Configuration
 
-### Modular Design
-Each subsystem is isolated in its own class for maintainability:
+### Adjustable Parameters
 
-- **MidiHandler** - Processes USB and DIN MIDI, routes clocks based on source selection
-- **ClockSync** - Generates precise analog pulses with cable detection
-- **Controls** - Handles all user inputs with debouncing and filtering
-- **Display** - Manages OLED rendering and menu state machine
-- **Settings** - EEPROM persistence with checksum validation
+**`config.h` - Hardware Pins:**
+```cpp
+#define SYNC_IN_PIN         7    // Analog sync input
+#define SYNC_OUT_PIN        5    // Analog sync output
+#define BUTTON_PIN         16    // BPM display button
+#define DISPLAY_CLK_PIN     8    // TM1637 clock
+#define DISPLAY_DIO_PIN     9    // TM1637 data
+```
 
-### Key Design Patterns
-- **Singleton pattern** for MIDI callbacks (library requirement)
-- **Dependency injection** for inter-module communication
-- **State machines** for display modes and clock source selection
-- **Debouncing** on all digital inputs (20ms buttons, 5ms encoder)
-- **Throttling** for ADC reads (50ms) and display updates (50ms)
+**`Sync.cpp` - Timing Constants:**
+```cpp
+static const unsigned long USB_TIMEOUT = 3000;           // USB inactivity timeout (ms)
+static const unsigned long CLOCK_TIMEOUT = 2000;         // Clock source timeout (ms)
+static const unsigned long MIN_CLOCK_INTERVAL = 8333;    // ~30 BPM limit (μs)
+static const unsigned long MAX_CLOCK_INTERVAL = 50000;   // ~300 BPM limit (μs)
+```
 
-### Clock Source Selection Logic
-1. User configures mode (AUTO/FORCE_USB/FORCE_DIN) in menu
-2. `MidiHandler` tracks last activity time for each source
-3. If no clock received for 3 seconds, source considered inactive
-4. In AUTO mode, USB has priority; falls back to DIN if USB inactive
-5. Only the active source forwards clocks to `ClockSync`
-
----
-
-## 🔒 Safety Features
-
-- **Open-collector clock output** - Transistor buffer protects MCU from backfeed
-- **Cable plug detection** - Only generates pulses when sync cable inserted
-- **ADC noise filtering** - 100nF caps + series resistors on pot inputs
-- **Input debouncing** - All buttons and encoder properly debounced
-- **EEPROM validation** - Magic number + checksum prevents corruption
-
----
-
-## 📝 Configuration Persistence
-
-Settings stored in EEPROM (survives power cycles):
-- PPQN (pulses per quarter note)
-- Clock source mode (AUTO/FORCE_USB/FORCE_DIN)
-- MIDI channel
-
-**EEPROM Structure:**
-```c
-struct SettingsData {
-    uint16_t magic;        // 0xBEA7 validation
-    uint8_t version;       // Structure version
-    uint8_t ppqn;
-    uint8_t midiChannel;
-    uint8_t clockSource;
-    uint8_t checksum;      // XOR checksum
-};
+**`Display.cpp` - Display Behavior:**
+```cpp
+static const unsigned long MIDI_MESSAGE_DURATION = 300;  // Message display time (ms)
+static const unsigned long IDLE_ANIM_INTERVAL = 300;     // Idle animation speed (ms)
 ```
 
 ---
 
-## 🎵 Use Cases
+## 📖 Code Architecture
 
-### 1. DAW-Centric Studio
-**Mode:** AUTO  
-**Setup:** DAW → USB → Pro Micro → Analog Clock → Volca/Modular  
-**Benefit:** DAW controls everything, hardware stays in sync
+### Main Components
 
-### 2. Hardware Sequencer as Master
-**Mode:** FORCE_DIN  
-**Setup:** Sequencer → DIN MIDI → Pro Micro → Analog Clock → Modular  
-**Benefit:** Hardware is master, DAW can still record MIDI
+**`main.cpp`** - Application entry point
+- Setup: Initializes all subsystems
+- Loop: Polls button, processes USB MIDI, updates sync and display
+- Interrupt: Handles sync input pulses (ISR)
 
-### 3. Hybrid Setup
-**Mode:** AUTO  
-**Setup:** Both DAW and hardware connected  
-**Benefit:** Switch between sources seamlessly, USB takes priority when active
+**`Sync.cpp/h`** - Clock synchronization engine
+- Multi-source clock management with priority
+- BPM calculation (240,000 / interval for 4-beat measure)
+- Clock distribution to all outputs
+- Cable detection logic
+
+**`Display.cpp/h`** - TM1637 display controller
+- Non-blocking display updates (AceSegment library)
+- Clock-synced animations (16-step rotation)
+- Beat position indicators (decimal points)
+- BPM display mode
+
+**`MIDIHandler.cpp/h`** - MIDI I/O management
+- USB ↔ DIN MIDI passthrough
+- Message parsing and forwarding
+- Optimized buffer flushing
+
+**`config.h`** - Hardware configuration
+- Pin definitions
+- Debug settings
+- Compile-time constants
+
+### Data Flow
+
+```
+┌─────────────┐
+│  MIDI IN    │ ──┐
+│ (USB/DIN)   │   │
+└─────────────┘   │
+                  ├──→ MIDIHandler ──→ Sync Engine ──┬──→ USB MIDI OUT
+┌─────────────┐   │                                   │
+│  SYNC IN    │ ──┘                                   ├──→ DIN MIDI OUT
+│ (Interrupt) │                                       │
+└─────────────┘                                       └──→ SYNC OUT
+       │
+       └──────────────────→ Display
+```
 
 ---
 
-## 🐛 Troubleshooting
+## 🔍 Troubleshooting
 
-**No clock pulses:**
-- Check cable is inserted (sync detect circuit)
-- Verify MIDI clock is being received (watch OLED BPM)
-- Check clock source mode matches your setup
+### Display shows "IdLE" constantly
+- **No clock detected** - Check MIDI cables and ensure source device is playing
+- **Wrong cable type** - Use standard MIDI cables (not null-modem)
+- **USB not recognized** - Try different USB port or cable
 
-**Jittery clock:**
-- Ensure PPQN divider is correct (24 MIDI clocks = 1 beat)
-- Check for electrical noise near clock output
+### BPM display shows wrong tempo
+- **Source switching** - Device may be receiving clock from unexpected source
+- **Sync input PPQN** - Analog sources may use non-standard resolutions (see below)
+- **Clock dropouts** - Check cable connections and signal integrity
 
-**Pots sending spurious CC:**
-- ADC_DEADZONE set to 3 (can increase in config.h)
-- Check for poor connections/cold solder joints
+### Analog sync not working
+- **Voltage levels** - Ensure sync source outputs 5V triggers (or use level shifter)
+- **Cable detection** - Use switched jacks or modify detection circuit
+- **Interrupt conflicts** - Pin 7 must be interrupt-capable (don't change)
 
-**Settings not saving:**
-- EEPROM validation failed - reset to defaults
-- Check serial debug for checksum errors
+### MIDI messages not passing through
+- **Baud rate** - Hardware MIDI must be 31250 baud (set in MIDI Library)
+- **Optocoupler** - Check 6N138 wiring and power supply
+- **USB driver** - Update USB MIDI drivers on computer
+
+### High memory usage / crashes
+- **Buffer overflow** - Reduce SERIAL_RX/TX_BUFFER_SIZE in platformio.ini
+- **Display updates** - Ensure `display.flush()` called regularly
+- **Interrupt safety** - Don't add Serial.print() in ISR functions
 
 ---
 
-## 📚 Libraries Used
+## 📐 PPQN & Analog Sync
 
-- [MIDI Library](https://github.com/FortySevenEffects/arduino_midi_library) v5.0.2 - DIN MIDI handling
-- [MIDIUSB](https://github.com/arduino-libraries/MIDIUSB) v1.0.5 - USB MIDI for ATmega32U4
-- [Adafruit SSD1306](https://github.com/adafruit/Adafruit_SSD1306) v2.5.7 - OLED driver
-- [Adafruit GFX](https://github.com/adafruit/Adafruit-GFX-Library) v1.11.9 - Graphics primitives
-- [Encoder](https://github.com/PaulStoffregen/Encoder) v1.4.4 - Rotary encoder handling
+### Understanding PPQN
+
+**PPQN** = Pulses Per Quarter Note (clock resolution)
+
+- **MIDI Standard:** 24 PPQN (fixed)
+- **Analog Devices:** Varies widely (1, 2, 4, 8, 24, 48 PPQN)
+
+This device **always outputs 24 PPQN** on MIDI outputs (standard).
+
+### Analog Sync Input
+
+When receiving analog sync (e.g., from Beatstep Pro, Volca, modular), the device **assumes 24 PPQN** and calculates BPM accordingly:
+
+**Example:**
+- Beatstep Pro outputs **1 PPQN** (1 pulse per quarter note)
+- Device receives 120 pulses/minute
+- BPM calculation: `(120 pulses/min × 24) / 24 = 120 BPM` ✓
+
+**Common Analog Sync Resolutions:**
+- **Korg Volca Series:** 2 PPQN (1 pulse per 8th note)
+- **DIN Sync (vintage):** 24 PPQN (Roland TR-series)
+- **Eurorack Clocks:** Often 4, 8, or 24 PPQN
+- **Arturia Beatstep Pro:** 1 PPQN (1 pulse per quarter note)
+
+> **Note:** If BPM display seems incorrect, your analog source may be using non-standard PPQN. The clock will still sync correctly, but BPM reading will be scaled.
+
+---
+
+## 🚀 Future Enhancements
+
+Potential features for future versions:
+- [ ] EEPROM settings persistence
+- [ ] Swing/groove quantization
+- [ ] Tap tempo button
+- [ ] PPQN configuration menu
+- [ ] MIDI message filtering
+- [ ] Multiple sync output modes
+- [ ] Adjustable LED brightness
+- [ ] Clock divider/multiplier
 
 ---
 
 ## 📄 License
 
-This firmware is provided as-is for personal and educational use.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
 ## 🙏 Credits
 
-**Hardware Design:** Based on standard MIDI optocoupler circuits and Pro Micro USB MIDI implementations.
+**Libraries:**
+- [MIDI Library](https://github.com/FortySevenEffects/arduino_midi_library) by FortySevenEffects
+- [MIDIUSB](https://github.com/arduino-libraries/MIDIUSB) by Arduino
+- [AceSegment](https://github.com/bxparks/AceSegment) by Brian Park
 
-**Author:** rMODS MIDI BytePulse Project
-
----
-
-## 🔗 Related Documentation
-
-- **Pin Configuration:** `include/config.h` - All pin definitions and constants
-- [MIDI Specification](https://www.midi.org/specifications) - Official MIDI protocol docs
+**Hardware:**
+- SparkFun Pro Micro board design
 
 ---
-
-**Enjoy syncing your gear! 🎹🎛️🎶**

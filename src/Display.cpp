@@ -1,358 +1,265 @@
-/**
- * MIDI BytePulse - Display Implementation
- */
-
 #include "Display.h"
-#include "MidiHandler.h"
-#include "ClockSync.h"
-#include "Controls.h"
+#include "config.h"
 
-Display::Display()
-    : _display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET)
-    , _midiHandler(nullptr)
-    , _clockSync(nullptr)
-    , _controls(nullptr)
-    , _mode(MODE_SPLASH)
-    , _lastUpdate(0)
-    , _splashStartTime(0)
-    , _lastActivity(0)
-    , _selectedItem(MENU_PPQN)
-    , _editingValue(false)
-    , _editPPQN(DEFAULT_PPQN)
-    , _editChannel(MIDI_CHANNEL)
-    , _editClockSource(DEFAULT_CLOCK_SOURCE) {
-}
+using ace_tmi::SimpleTmi1637Interface;
+using ace_segment::Tm1637Module;
 
 void Display::begin() {
-    // Initialize I2C display
-    if (!_display.begin(SSD1306_SWITCHCAPVCC, OLED_I2C_ADDRESS)) {
-        DEBUG_PRINTLN("SSD1306 allocation failed");
-        return;
+  tmiInterface = new SimpleTmi1637Interface(DISPLAY_DIO_PIN, DISPLAY_CLK_PIN, 100);
+  ledModule = new Tm1637Module<SimpleTmi1637Interface, 4>(*tmiInterface);
+  
+  tmiInterface->begin();
+  ledModule->begin();
+  ledModule->setBrightness(2);
+  
+  uint8_t segments[7] = {
+    0b00000001, 0b00000010, 0b00000100, 0b00001000,
+    0b00010000, 0b00100000, 0b01000000
+  };
+  
+  for (int frame = 0; frame < 10; frame++) {
+    for (int digit = 0; digit < 4; digit++) {
+      int segmentIdx = frame - digit;
+      if (segmentIdx >= 0 && segmentIdx < 7) {
+        ledModule->setPatternAt(digit, segments[segmentIdx]);
+      } else {
+        ledModule->setPatternAt(digit, 0b00000000);
+      }
     }
+    ledModule->flush();
+    delay(100);
+  }
+  
+  for (int dp = 0; dp < 4; dp++) {
+    for (int digit = 0; digit < 4; digit++) {
+      ledModule->setPatternAt(digit, digit == dp ? 0b10000000 : 0b00000000);
+    }
+    ledModule->flush();
+    delay(150);
+  }
+  
+  for (int blink = 0; blink < 2; blink++) {
+    for (int digit = 0; digit < 4; digit++) {
+      ledModule->setPatternAt(digit, 0xFF);
+    }
+    ledModule->flush();
+    delay(100);
     
-    _display.clearDisplay();
-    _display.setTextColor(SSD1306_WHITE);
-    
-    showSplash();
-    
-    DEBUG_PRINTLN("Display initialized");
+    for (int digit = 0; digit < 4; digit++) {
+      ledModule->setPatternAt(digit, 0x00);
+    }
+    ledModule->flush();
+    delay(100);
+  }
 }
 
-void Display::update() {
+void Display::setBPM(uint16_t bpm) {
+  bpm = constrain(bpm, 20, 400);
+  
+  if (abs((int)bpm - (int)currentBPM) > 2) {
+    currentBPM = bpm;
+  }
+  
+  isPlaying = true;
+  isIdle = false;
+}
+
+void Display::showPlay() {
+  isPlaying = true;
+  isIdle = false;
+}
+
+void Display::showStop() {
+  if (ledModule) {
+    showingMIDIMessage = true;
+    midiMessageTime = millis();
+    isIdle = false;
+    ledModule->setPatternAt(0, 0b01101101);
+    ledModule->setPatternAt(1, 0b01111000);
+    ledModule->setPatternAt(2, 0b01011100);
+    ledModule->setPatternAt(3, 0b01110011);
+  }
+  currentBeat = 0;
+}
+
+void Display::advanceAnimation() {
+  if (isPlaying && !isIdle && !showingMIDIMessage) {
+    static uint8_t clockCounter = 0;
+    static uint8_t stepCounter = 0;
+    
+    clockCounter++;
+    
+    if (clockCounter >= 6) {
+      clockCounter = 0;
+      animationNeedsUpdate = true;
+      
+      stepCounter++;
+      if (stepCounter >= 4) {
+        stepCounter = 0;
+        currentBeat = (currentBeat + 1) % 4;
+      }
+    }
+  }
+}
+
+void Display::setBeat(uint8_t beat) {
+  currentBeat = beat % 4;
+}
+
+void Display::showBPM() {
+  if (!ledModule) return;
+  
+  if (!isPlaying) {
+    showIdle();
+    return;
+  }
+  
+  uint16_t bpm = currentBPM;
+  uint8_t digit1 = (bpm / 100) % 10;
+  uint8_t digit2 = (bpm / 10) % 10;
+  uint8_t digit3 = bpm % 10;
+  
+  uint8_t tWithDecimal = charToSegment('t') | 0b10000000;
+  ledModule->setPatternAt(0, tWithDecimal);
+  ledModule->setPatternAt(1, charToSegment('0' + digit1));
+  ledModule->setPatternAt(2, charToSegment('0' + digit2));
+  ledModule->setPatternAt(3, charToSegment('0' + digit3));
+  ledModule->flush();
+}
+
+void Display::showIdle() {
+  if (!ledModule) return;
+  
+  ledModule->setPatternAt(0, charToSegment('I'));
+  ledModule->setPatternAt(1, charToSegment('d'));
+  ledModule->setPatternAt(2, charToSegment('L'));
+  ledModule->setPatternAt(3, charToSegment('e'));
+  ledModule->flush();
+}
+
+void Display::setButtonPressed(bool pressed) {
+  buttonPressed = pressed;
+}
+
+uint8_t Display::charToSegment(char c) {
+  switch (c) {
+    case '0': return 0b00111111;
+    case '1': return 0b00000110;
+    case '2': return 0b01011011;
+    case '3': return 0b01001111;
+    case '4': return 0b01100110;
+    case '5': return 0b01101101;
+    case '6': return 0b01111101;
+    case '7': return 0b00000111;
+    case '8': return 0b01111111;
+    case '9': return 0b01101111;
+    case 'A': case 'a': return 0b01110111;
+    case 'B': case 'b': return 0b01111100;
+    case 'C': case 'c': return 0b00111001;
+    case 'D': case 'd': return 0b01011110;
+    case 'E': case 'e': return 0b01111001;
+    case 'F': case 'f': return 0b01110001;
+    case 'I': case 'i': return 0b00000110;
+    case 'L': case 'l': return 0b00111000;
+    case 'N': case 'n': return 0b01010100;
+    case 'o': case 'O': return 0b01011100;
+    case 'P': case 'p': return 0b01110011;
+    case 't': case 'T': return 0b01111000;
+    case 'Y': case 'y': return 0b01101110;
+    case '.': return 0b10000000;
+    case '#': return 0b00000000;
+    default: return 0b00000000;
+  }
+}
+
+void Display::showMIDIMessage(const char* type, uint8_t data, uint8_t channel) {
+  if (ledModule && isIdle) {
+    showingMIDIMessage = true;
+    midiMessageTime = millis();
+    
+    char hex1 = (data >> 4) < 10 ? '0' + (data >> 4) : 'A' + (data >> 4) - 10;
+    char hex2 = (data & 0x0F) < 10 ? '0' + (data & 0x0F) : 'A' + (data & 0x0F) - 10;
+    char channelHex = channel < 10 ? '0' + channel : 'A' + channel - 10;
+    uint8_t nWithDecimal = charToSegment('n') | 0b10000000;
+    
+    ledModule->setPatternAt(0, charToSegment(channelHex));
+    ledModule->setPatternAt(1, nWithDecimal);
+    ledModule->setPatternAt(2, charToSegment(hex1));
+    ledModule->setPatternAt(3, charToSegment(hex2));
+  }
+}
+
+void Display::clear() {
+  if (ledModule) {
+    isIdle = true;
+    isPlaying = false;
+    idleAnimFrame = 0;
+    lastIdleAnimTime = millis();
+    currentBPM = 0;
+  }
+}
+
+void Display::flush() {
+  if (ledModule) {
     unsigned long now = millis();
-    
-    // Check if it's time to update display
-    if (now - _lastUpdate < DISPLAY_UPDATE_MS) {
-        return;
+    if ((unsigned long)(now - lastFlushTime) >= 20) {
+      lastFlushTime = now;
+      ledModule->flushIncremental();
     }
-    _lastUpdate = now;
     
-    // Handle mode transitions
-    switch (_mode) {
-        case MODE_SPLASH:
-            if (now - _splashStartTime >= SPLASH_DURATION_MS) {
-                showMain();
-            }
-            break;
-            
-        case MODE_MAIN:
-            renderMain();
-            break;
-            
-        case MODE_MENU:
-            // Auto-exit menu after timeout
-            if (now - _lastActivity >= MENU_TIMEOUT_MS) {
-                exitMenu();
-            } else {
-                renderMenu();
-            }
-            break;
+    if (buttonPressed) {
+      return;
     }
-}
-
-void Display::showSplash() {
-    _mode = MODE_SPLASH;
-    _splashStartTime = millis();
-    renderSplash();
-}
-
-void Display::showMain() {
-    _mode = MODE_MAIN;
-    renderMain();
-}
-
-void Display::enterMenu() {
-    _mode = MODE_MENU;
-    _selectedItem = MENU_PPQN;
-    _editingValue = false;
     
-    // Load current values
-    if (_clockSync) {
-        _editPPQN = _clockSync->getPPQN();
+    if (showingMIDIMessage && (unsigned long)(now - midiMessageTime) >= 500) {
+      showingMIDIMessage = false;
+      for (int i = 0; i < 4; i++) {
+        ledModule->setPatternAt(i, 0b00000000);
+      }
     }
-    if (_midiHandler) {
-        _editClockSource = _midiHandler->getClockSource();
-    }
-    _editChannel = MIDI_CHANNEL;
     
-    resetMenuTimeout();
-    DEBUG_PRINTLN("Entered menu");
-}
-
-void Display::exitMenu() {
-    _mode = MODE_MAIN;
-    _editingValue = false;
-    DEBUG_PRINTLN("Exited menu");
-}
-
-void Display::handleEncoderDelta(int8_t delta) {
-    if (_mode != MODE_MENU) return;
-    
-    resetMenuTimeout();
-    
-    if (_editingValue) {
-        // Adjust value
-        switch (_selectedItem) {
-            case MENU_PPQN:
-                _editPPQN = constrain(_editPPQN + delta, MIN_PPQN, MAX_PPQN);
-                break;
-                
-            case MENU_CLOCK_SOURCE:
-                {
-                    int newSource = (int)_editClockSource + delta;
-                    if (newSource < 0) newSource = 2;  // Wrap to CLOCK_FORCE_DIN
-                    if (newSource > 2) newSource = 0;  // Wrap to CLOCK_AUTO
-                    _editClockSource = (ClockSource)newSource;
-                }
-                break;
-                
-            case MENU_MIDI_CHANNEL:
-                _editChannel = constrain(_editChannel + delta, 1, 16);
-                break;
-                
-            default:
-                break;
-        }
-    } else {
-        // Navigate menu
-        int newItem = (int)_selectedItem + delta;
-        if (newItem < 0) newItem = MENU_COUNT - 1;
-        if (newItem >= MENU_COUNT) newItem = 0;
-        _selectedItem = (MenuItem)newItem;
-    }
-}
-
-void Display::handleEncoderPress() {
-    if (_mode != MODE_MENU) return;
-    
-    resetMenuTimeout();
-    
-    if (_editingValue) {
-        // Confirm value change
-        switch (_selectedItem) {
-            case MENU_PPQN:
-                if (_clockSync) {
-                    _clockSync->setPPQN(_editPPQN);
-                }
-                break;
-                
-            case MENU_CLOCK_SOURCE:
-                if (_midiHandler) {
-                    _midiHandler->setClockSource(_editClockSource);
-                }
-                break;
-                
-            case MENU_MIDI_CHANNEL:
-                // Store MIDI channel (would be saved to EEPROM)
-                break;
-                
-            default:
-                break;
-        }
-        _editingValue = false;
+    if (isIdle && (unsigned long)(now - lastIdleAnimTime) >= 100) {
+      lastIdleAnimTime = now;
+      
+      if (!showingMIDIMessage) {
+        const uint8_t chaoticPattern[16] = {
+          0b00000001, 0b00100001, 0b00100000, 0b00110000,
+          0b00010000, 0b00011000, 0b00001000, 0b00001100,
+          0b00000100, 0b00000110, 0b00000010, 0b01000010,
+          0b01000000, 0b01100000, 0b01010000, 0b01001000
+        };
         
-    } else {
-        // Enter edit mode or execute action
-        switch (_selectedItem) {
-            case MENU_PPQN:
-            case MENU_CLOCK_SOURCE:
-            case MENU_MIDI_CHANNEL:
-                _editingValue = true;
-                break;
-                
-            case MENU_EXIT:
-                exitMenu();
-                break;
-                
-            default:
-                break;
-        }
-    }
-}
-
-// ============================================================================
-// Rendering Methods
-// ============================================================================
-
-void Display::renderSplash() {
-    _display.clearDisplay();
-    
-    centerText("MIDI BytePulse", 20, 2);
-    centerText("v1.0", 40, 1);
-    
-    _display.display();
-}
-
-void Display::renderMain() {
-    _display.clearDisplay();
-    
-    // Transport status and BPM (top)
-    drawTransportStatus(0, 0);
-    
-    // Clock info (middle)
-    drawClockInfo(0, 30);
-    
-    // Control values (bottom)
-    drawControlValues(0, 45);
-    
-    // Cable status indicator
-    drawCableStatus(110, 0);
-    
-    _display.display();
-}
-
-void Display::renderMenu() {
-    _display.clearDisplay();
-    
-    _display.setTextSize(1);
-    _display.setCursor(0, 0);
-    _display.print("-- MENU --");
-    
-    // PPQN setting
-    char buf[16];
-    snprintf(buf, sizeof(buf), "%d", _editPPQN);
-    drawMenuItem(12, "PPQN", buf, _selectedItem == MENU_PPQN, _editingValue);
-    
-    // Clock Source setting
-    const char* clockSourceStr = "AUTO";
-    if (_editClockSource == CLOCK_FORCE_USB) clockSourceStr = "USB";
-    else if (_editClockSource == CLOCK_FORCE_DIN) clockSourceStr = "DIN";
-    drawMenuItem(24, "Clock", clockSourceStr, _selectedItem == MENU_CLOCK_SOURCE, _editingValue);
-    
-    // MIDI Channel setting
-    snprintf(buf, sizeof(buf), "%d", _editChannel);
-    drawMenuItem(36, "MIDI Ch", buf, _selectedItem == MENU_MIDI_CHANNEL, _editingValue);
-    
-    // Exit option
-    drawMenuItem(48, "Exit", "", _selectedItem == MENU_EXIT, false);
-    
-    _display.display();
-}
-
-void Display::drawTransportStatus(int16_t x, int16_t y) {
-    _display.setTextSize(1);
-    _display.setCursor(x, y);
-    
-    if (_midiHandler && _midiHandler->isPlaying()) {
-        _display.print("PLAY ");
-        _display.print(_midiHandler->getBPM());
-        _display.print(" BPM");
-        
-        // Show active clock source
-        ClockSource active = _midiHandler->getActiveClockSource();
-        _display.setCursor(x, y + 10);
-        if (active == CLOCK_FORCE_USB) {
-            _display.print("USB");
-        } else if (active == CLOCK_FORCE_DIN) {
-            _display.print("DIN");
-        } else {
-            _display.print("---");
-        }
-    } else {
-        _display.print("STOP");
-    }
-}
-
-void Display::drawClockInfo(int16_t x, int16_t y) {
-    _display.setTextSize(1);
-    _display.setCursor(x, y);
-    _display.print("PPQN:");
-    if (_clockSync) {
-        _display.print(_clockSync->getPPQN());
-        _display.print("  Pulses:");
-        _display.print(_clockSync->getPulseCount());
-    }
-}
-
-void Display::drawControlValues(int16_t x, int16_t y) {
-    if (!_controls) return;
-    
-    _display.setTextSize(1);
-    
-    _display.setCursor(x, y);
-    _display.print("Vol:");
-    _display.print(_controls->getVolumeValue());
-    
-    _display.setCursor(x + 50, y);
-    _display.print("Cut:");
-    _display.print(_controls->getCutoffValue());
-    
-    _display.setCursor(x, y + 10);
-    _display.print("Res:");
-    _display.print(_controls->getResonanceValue());
-}
-
-void Display::drawCableStatus(int16_t x, int16_t y) {
-    if (_clockSync && _clockSync->isCableInserted()) {
-        _display.fillCircle(x, y + 4, 3, SSD1306_WHITE);
-    } else {
-        _display.drawCircle(x, y + 4, 3, SSD1306_WHITE);
-    }
-}
-
-void Display::drawMenuItem(int16_t y, const char* label, const char* value, bool selected, bool editing) {
-    _display.setTextSize(1);
-    
-    // Draw selection indicator
-    if (selected) {
-        _display.setCursor(0, y);
-        _display.print(">");
-    }
-    
-    // Draw label
-    _display.setCursor(10, y);
-    _display.print(label);
-    
-    // Draw value (if provided)
-    if (value[0] != '\0') {
-        _display.setCursor(70, y);
-        
-        // Highlight if editing
-        if (editing) {
-            _display.fillRect(68, y - 1, 30, 10, SSD1306_WHITE);
-            _display.setTextColor(SSD1306_BLACK);
+        for (int i = 0; i < 4; i++) {
+          uint8_t frame = (idleAnimFrame + (i * 4)) % 16;
+          ledModule->setPatternAt(i, chaoticPattern[frame]);
         }
         
-        _display.print(value);
-        
-        if (editing) {
-            _display.setTextColor(SSD1306_WHITE);
-        }
+        idleAnimFrame = (idleAnimFrame + 1) % 16;
+      }
     }
-}
-
-void Display::centerText(const char* text, int16_t y, uint8_t textSize) {
-    _display.setTextSize(textSize);
     
-    int16_t x1, y1;
-    uint16_t w, h;
-    _display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
-    
-    int16_t x = (SCREEN_WIDTH - w) / 2;
-    _display.setCursor(x, y);
-    _display.print(text);
-}
-
-void Display::resetMenuTimeout() {
-    _lastActivity = millis();
+    if (isPlaying && !isIdle && !showingMIDIMessage && animationNeedsUpdate) {
+      animationNeedsUpdate = false;
+      
+      const uint8_t rotatePattern[4] = {
+        0b00000001, 0b00000010, 0b00001000, 0b00100000
+      };
+      
+      uint8_t decimalDigit = currentBeat;
+      
+      for (int i = 0; i < 4; i++) {
+        uint8_t frame = idleAnimFrame % 4;
+        uint8_t pattern = rotatePattern[frame];
+        
+        if (i == decimalDigit) {
+          pattern |= 0b10000000;
+        }
+        
+        ledModule->setPatternAt(i, pattern);
+      }
+      
+      idleAnimFrame = (idleAnimFrame + 1);
+      if (idleAnimFrame >= 16) idleAnimFrame = 0;
+    }
+  }
 }
