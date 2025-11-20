@@ -27,7 +27,8 @@ void onClockStopped() {
 
 // Clock start callback
 void onClockStarted() {
-  display.showClockIndicator();
+  // Just stop idle animation, wait for BPM to be calculated
+  // Display will show "PlaY" briefly from the Start message handler
 }
 
 void syncInInterrupt() {

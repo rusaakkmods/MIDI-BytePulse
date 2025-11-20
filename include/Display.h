@@ -18,9 +18,10 @@ public:
   void setBPM(uint16_t bpm);
   void setSource(const char* source);
   void clear();
-  void showClockIndicator();  // Show "0." when clock starts
   void flush();                // Non-blocking incremental flush - call every loop
   void showMIDIMessage(const char* type, uint8_t data, uint8_t channel = 0);  // Show brief MIDI message
+  void showPlay();  // Show "PlaY" briefly
+  void showStop();  // Show "StoP" briefly
 
 private:
   ace_tmi::SimpleTmi1637Interface* tmiInterface = nullptr;

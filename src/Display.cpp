@@ -122,16 +122,29 @@ void Display::setBPM(uint16_t bpm) {
   }
 }
 
-void Display::showClockIndicator() {
-  // Show "t  0." when clock starts
+void Display::showPlay() {
+  // Show "PLaY" briefly when start detected
   if (ledModule) {
-    isIdle = false;  // Stop idle animation
-    showingMIDIMessage = false;  // Stop showing MIDI messages
-    ledModule->setPatternAt(0, 0b01111000);  // "t" prefix
-    ledModule->setPatternAt(1, 0b00000000);
-    ledModule->setPatternAt(2, 0b00000000);
-    ledModule->setPatternAt(3, 0b00111111 | 0b10000000);  // 0 with decimal
-    currentBPM = 0;
+    showingMIDIMessage = true;
+    midiMessageTime = millis();
+    isIdle = false;  // Temporarily override state to show message
+    ledModule->setPatternAt(0, 0b01110011);  // P
+    ledModule->setPatternAt(1, 0b00111000);  // L
+    ledModule->setPatternAt(2, 0b01011111);  // a (8 without top-left segment)
+    ledModule->setPatternAt(3, 0b01101110);  // Y
+  }
+}
+
+void Display::showStop() {
+  // Show "StoP" briefly when stop detected
+  if (ledModule) {
+    showingMIDIMessage = true;
+    midiMessageTime = millis();
+    isIdle = false;  // Temporarily override state to show message
+    ledModule->setPatternAt(0, 0b01101101);  // S
+    ledModule->setPatternAt(1, 0b01111000);  // t
+    ledModule->setPatternAt(2, 0b01011100);  // o
+    ledModule->setPatternAt(3, 0b01110011);  // P
   }
 }
 
@@ -158,10 +171,12 @@ uint8_t Display::charToSegment(char c) {
     case 'D': case 'd': return 0b01011110;
     case 'E': case 'e': return 0b01111001;
     case 'F': case 'f': return 0b01110001;
+    case 'L': case 'l': return 0b00111000;
     case 'N': case 'n': return 0b01010100;
     case 'o': case 'O': return 0b01011100;
     case 'P': case 'p': return 0b01110011;
     case 't': case 'T': return 0b01111000;
+    case 'Y': case 'y': return 0b01101110;
     case '.': return 0b10000000;  // Decimal point
     case '#': return 0b00000000;  // Placeholder (channel will be shown)
     default: return 0b00000000;
@@ -212,14 +227,18 @@ void Display::flush() {
       ledModule->flushIncremental();
     }
     
+    // Check if we should resume normal display after showing transport message
+    if (showingMIDIMessage && (unsigned long)(now - midiMessageTime) >= 1000) {
+      showingMIDIMessage = false;
+      // If clock is running, restore BPM display
+      if (!isIdle && currentBPM > 0) {
+        setBPM(currentBPM);  // Restore BPM display
+      }
+    }
+    
     // Handle idle animation
     if (isIdle && (unsigned long)(now - lastIdleAnimTime) >= 100) {
       lastIdleAnimTime = now;
-      
-      // Check if we should resume animation after showing MIDI message
-      if (showingMIDIMessage && (unsigned long)(now - midiMessageTime) >= 1000) {
-        showingMIDIMessage = false;
-      }
       
       // Only animate if not showing MIDI message
       if (!showingMIDIMessage) {

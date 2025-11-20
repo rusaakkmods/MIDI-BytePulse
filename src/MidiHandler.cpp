@@ -141,6 +141,11 @@ void MIDIHandler::handleStart() {
   MidiUSB.sendMIDI(event);
   MidiUSB.flush();
   
+  // Show "PlaY" briefly
+  if (display) {
+    display->showPlay();
+  }
+  
   if (sync) {
     sync->handleStart(CLOCK_SOURCE_DIN);
   }
@@ -150,6 +155,11 @@ void MIDIHandler::handleContinue() {
   midiEventPacket_t event = {0x0F, 0xFB, 0, 0};
   MidiUSB.sendMIDI(event);
   MidiUSB.flush();
+  
+  // Show "PlaY" briefly
+  if (display) {
+    display->showPlay();
+  }
   
   if (sync) {
     sync->handleStart(CLOCK_SOURCE_DIN);
@@ -162,6 +172,11 @@ void MIDIHandler::handleStop() {
   midiEventPacket_t event = {0x0F, 0xFC, 0, 0};
   MidiUSB.sendMIDI(event);
   MidiUSB.flush();
+  
+  // Show "StoP" briefly
+  if (display) {
+    display->showStop();
+  }
   
   if (sync) {
     sync->handleStop(CLOCK_SOURCE_DIN);
