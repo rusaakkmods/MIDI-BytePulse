@@ -9,16 +9,19 @@
 #include <MIDIUSB.h>
 
 class Sync;
+class Display;
 
 class MIDIHandler {
 public:
   void begin();
   void update();
   void setSync(Sync* s);
+  void setDisplay(Display* d);
   static void flushBuffer();
 
 private:
   static Sync* sync;
+  static Display* display;
   
   static void sendMessage(const midiEventPacket_t& event);
   static void forwardDINtoUSB(byte channel, byte type, byte data1, byte data2);

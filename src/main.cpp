@@ -79,6 +79,7 @@ void setup() {
   sync.onClockStop = onClockStopped;  // Set callback for clock stop
   sync.onClockStart = onClockStarted;  // Set callback for clock start
   midiHandler.setSync(&sync);
+  midiHandler.setDisplay(&display);
   midiHandler.begin();
   
   attachInterrupt(digitalPinToInterrupt(SYNC_IN_PIN), syncInInterrupt, RISING);

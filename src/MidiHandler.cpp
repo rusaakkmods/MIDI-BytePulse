@@ -4,12 +4,14 @@
 
 #include "MIDIHandler.h"
 #include "Sync.h"
+#include "Display.h"
 #include <MIDI.h>
 #include <MIDIUSB.h>
 
 MIDI_CREATE_INSTANCE(HardwareSerial, Serial1, MIDI_DIN);
 
 Sync* MIDIHandler::sync = nullptr;
+Display* MIDIHandler::display = nullptr;
 
 void MIDIHandler::sendMessage(const midiEventPacket_t& event) {
   MidiUSB.sendMIDI(event);
@@ -47,6 +49,10 @@ void MIDIHandler::setSync(Sync* s) {
   sync = s;
 }
 
+void MIDIHandler::setDisplay(Display* d) {
+  display = d;
+}
+
 void MIDIHandler::forwardDINtoUSB(byte channel, byte type, byte data1, byte data2) {
   midiEventPacket_t event;
   event.header = type >> 4;
@@ -59,10 +65,14 @@ void MIDIHandler::forwardDINtoUSB(byte channel, byte type, byte data1, byte data
 
 void MIDIHandler::handleNoteOn(byte channel, byte note, byte velocity) {
   forwardDINtoUSB(channel, 0x90, note, velocity);
+  if (display && sync && !sync->isClockRunning()) {
+    display->showMIDIMessage("n.", note, channel - 1);  // channel is 1-16, convert to 0-15
+  }
 }
 
 void MIDIHandler::handleNoteOff(byte channel, byte note, byte velocity) {
   forwardDINtoUSB(channel, 0x80, note, velocity);
+  // Don't show note off on display
 }
 
 void MIDIHandler::handleAfterTouchPoly(byte channel, byte note, byte pressure) {
@@ -71,10 +81,12 @@ void MIDIHandler::handleAfterTouchPoly(byte channel, byte note, byte pressure) {
 
 void MIDIHandler::handleControlChange(byte channel, byte controller, byte value) {
   forwardDINtoUSB(channel, 0xB0, controller, value);
+  // Don't show CC on display
 }
 
 void MIDIHandler::handleProgramChange(byte channel, byte program) {
   forwardDINtoUSB(channel, 0xC0, program, 0);
+  // Don't show PC on display
 }
 
 void MIDIHandler::handleAfterTouchChannel(byte channel, byte pressure) {

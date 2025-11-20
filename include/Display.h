@@ -20,14 +20,21 @@ public:
   void clear();
   void showClockIndicator();  // Show "0." when clock starts
   void flush();                // Non-blocking incremental flush - call every loop
+  void showMIDIMessage(const char* type, uint8_t data, uint8_t channel = 0);  // Show brief MIDI message
 
 private:
   ace_tmi::SimpleTmi1637Interface* tmiInterface = nullptr;
   ace_segment::Tm1637Module<ace_tmi::SimpleTmi1637Interface, 4>* ledModule = nullptr;
   uint16_t currentBPM = 0;
   unsigned long lastFlushTime = 0;
+  bool isIdle = false;
+  unsigned long lastIdleAnimTime = 0;
+  uint8_t idleAnimFrame = 0;
+  unsigned long midiMessageTime = 0;
+  bool showingMIDIMessage = false;
   
   void initializeHardware();
+  uint8_t charToSegment(char c);
 };
 
 #endif  // DISPLAY_H
