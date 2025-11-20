@@ -90,36 +90,10 @@ void Display::setBPM(uint16_t bpm) {
   // Only update if changed by more than 2 BPM
   if (abs((int)bpm - (int)currentBPM) > 2) {
     currentBPM = bpm;
-    
-    if (ledModule) {
-      // Convert BPM to 3 digits (right-aligned)
-      uint8_t hundreds = (bpm / 100) % 10;
-      uint8_t tens = (bpm / 10) % 10;
-      uint8_t ones = bpm % 10;
-      
-      // Digit patterns for 0-9
-      const uint8_t digitToSegment[10] = {
-        0b00111111, // 0
-        0b00000110, // 1
-        0b01011011, // 2
-        0b01001111, // 3
-        0b01100110, // 4
-        0b01101101, // 5
-        0b01111101, // 6
-        0b00000111, // 7
-        0b01111111, // 8
-        0b01101111  // 9
-      };
-      
-      // Right-align: "t" prefix, hundreds (or blank if 0), tens, ones with decimal
-      ledModule->setPatternAt(0, 0b01111000);  // "t" prefix for tempo/BPM
-      ledModule->setPatternAt(1, hundreds > 0 ? digitToSegment[hundreds] : 0b00000000);
-      ledModule->setPatternAt(2, digitToSegment[tens]);
-      ledModule->setPatternAt(3, digitToSegment[ones] | 0b10000000);  // Ones with decimal point
-      
-      // Patterns are set, flushIncremental() will handle the update
-    }
   }
+  
+  // Don't display BPM - keep display blank during playback
+  // BPM calculation still runs in background for potential future use
 }
 
 void Display::showPlay() {
@@ -228,11 +202,11 @@ void Display::flush() {
     }
     
     // Check if we should resume normal display after showing transport message
-    if (showingMIDIMessage && (unsigned long)(now - midiMessageTime) >= 1000) {
+    if (showingMIDIMessage && (unsigned long)(now - midiMessageTime) >= 500) {
       showingMIDIMessage = false;
-      // If clock is running, restore BPM display
-      if (!isIdle && currentBPM > 0) {
-        setBPM(currentBPM);  // Restore BPM display
+      // Clear display when transport message times out
+      for (int i = 0; i < 4; i++) {
+        ledModule->setPatternAt(i, 0b00000000);
       }
     }
     
