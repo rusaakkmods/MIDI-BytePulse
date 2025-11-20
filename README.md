@@ -31,8 +31,12 @@
 - **Idle Display** - Shows "IdLE" when no clock is detected
 
 ### MIDI Message Handling
-- **Full MIDI Passthrough** - All MIDI messages forwarded between USB ↔ DIN
+- **Bidirectional MIDI Routing:**
+  - DIN MIDI IN → USB MIDI OUT (all messages)
+  - USB MIDI → DIN MIDI OUT (all channel messages + clock)
+  - No DIN MIDI IN → DIN MIDI OUT loop (prevents feedback)
 - **Standard Clock Messages** - Start (0xFA), Stop (0xFC), Continue (0xFB), Clock (0xF8)
+- **Master Clock Distribution** - USB and Sync Input clocks forwarded to DIN MIDI OUT
 - **Active Sensing** - Automatic timeout detection for USB sources
 - **No Latency** - Optimized for real-time performance with zero blocking delays
 
@@ -101,8 +105,8 @@
 When multiple sources are active, the device automatically switches to the highest priority source.
 
 ### Memory Usage
-- **Flash:** ~16.9 KB / 28 KB (59%)
-- **RAM:** ~1.5 KB / 2.5 KB (59%)
+- **Flash:** ~16.0 KB / 28 KB (55.9%)
+- **RAM:** ~1.5 KB / 2.5 KB (57.6%)
 - **Build Optimizations:** LTO, function/data sections, relaxed linking
 
 ---
