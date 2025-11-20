@@ -1,7 +1,3 @@
-/**
- * MIDI BytePulse - Sync Handler Implementation
- */
-
 #include "Sync.h"
 #include "Display.h"
 #include "config.h"
@@ -36,8 +32,6 @@ void Sync::begin() {
   prevSyncInTime = 0;
   avgSyncInInterval = 0;
   syncInPulseTime = 0;
-  
-  // BPM calculation
   beatPosition = 0;
   lastBeatTime = 0;
   currentBPM = 0;
@@ -118,19 +112,16 @@ void Sync::handleClock(ClockSource source) {
   
   if (!isPlaying) return;
   
-  // Advance display animation on each clock pulse
   if (display) {
     display->advanceAnimation();
   }
   
-  // Output clock pulse every MIDI clock (24 PPQN)
   if (isSyncOutConnected()) {
     digitalWrite(SYNC_OUT_PIN, HIGH);
     clockState = true;
     lastPulseTime = micros();
   }
   
-  // LED on quarter notes
   if (ppqnCounter == 0) {
     digitalWrite(LED_BEAT_PIN, HIGH);
     ledState = true;
@@ -138,36 +129,28 @@ void Sync::handleClock(ClockSource source) {
       lastPulseTime = micros();
     }
     
-    // Calculate BPM every 4 beats
     unsigned long now = millis();
     
-    // Initialize timing on first beat
     if (beatPosition == 0 && lastBeatTime == 0) {
       lastBeatTime = now;
     }
     
-    if (beatPosition == 3) {  // After 4th beat, calculate BPM
+    if (beatPosition == 3) {
       if (lastBeatTime > 0) {
         unsigned long interval = now - lastBeatTime;
-        // Interval is for 4 beats (one measure at 24 PPQN)
-        // BPM = 60,000 ms/min / (interval_ms / 4)
-        // Simplified: BPM = 240,000 / interval_ms
         currentBPM = 240000UL / interval;
         
         #if SERIAL_DEBUG
-        // Only display if BPM changed by more than 2
         if (abs((int)currentBPM - (int)lastDisplayedBPM) > 2) {
           DEBUG_PRINT("BPM: ");
           DEBUG_PRINTLN(currentBPM);
           lastDisplayedBPM = currentBPM;
           
-          // Update display via callback
           if (onBPMUpdate) {
             onBPMUpdate(currentBPM);
           }
         }
         #else
-        // In non-debug mode, still call display callback
         if (abs((int)currentBPM - (int)lastDisplayedBPM) > 2) {
           lastDisplayedBPM = currentBPM;
           if (onBPMUpdate) {
@@ -176,11 +159,10 @@ void Sync::handleClock(ClockSource source) {
         }
         #endif
         
-        lastBeatTime = now;  // Update for next cycle
+        lastBeatTime = now;
       }
     }
     
-    // Move to next beat position
     beatPosition = (beatPosition + 1) % 4;
   }
   
@@ -199,13 +181,10 @@ void Sync::handleStart(ClockSource source) {
     avgUSBClockInterval = 0;
     isPlaying = true;
     ppqnCounter = 0;
-    
-    // Reset BPM calculation
     beatPosition = 0;
     lastBeatTime = 0;
-    lastDisplayedBPM = 0;  // Reset to allow BPM display after restart
+    lastDisplayedBPM = 0;
     
-    // Show clock indicator immediately
     if (onClockStart) {
       onClockStart();
     }
@@ -221,13 +200,10 @@ void Sync::handleStart(ClockSource source) {
     activeSource = CLOCK_SOURCE_DIN;
     isPlaying = true;
     ppqnCounter = 0;
-    
-    // Reset BPM calculation
     beatPosition = 0;
     lastBeatTime = 0;
-    lastDisplayedBPM = 0;  // Reset to allow BPM display after restart
+    lastDisplayedBPM = 0;
     
-    // Show clock indicator immediately
     if (onClockStart) {
       onClockStart();
     }
@@ -237,18 +213,14 @@ void Sync::handleStart(ClockSource source) {
 void Sync::handleStop(ClockSource source) {
   if (source == CLOCK_SOURCE_USB) {
     usbIsPlaying = false;
-    isPlaying = false;  // Added: properly stop playback
+    isPlaying = false;
     activeSource = CLOCK_SOURCE_NONE;
     avgUSBClockInterval = 0;
     prevUSBClockTime = 0;
-    ppqnCounter = 0;  // Added: reset counter
-    
-    // Reset BPM calculation
+    ppqnCounter = 0;
     beatPosition = 0;
     lastBeatTime = 0;
-    // Keep currentBPM - last known value
     
-    // Clear display via callback
     if (onClockStop) {
       onClockStop();
     }
@@ -264,18 +236,14 @@ void Sync::handleStop(ClockSource source) {
     activeSource = CLOCK_SOURCE_NONE;
     isPlaying = false;
     ppqnCounter = 0;
-    
-    // Reset BPM calculation
     beatPosition = 0;
     lastBeatTime = 0;
-    // Keep currentBPM - last known value
     
     digitalWrite(SYNC_OUT_PIN, LOW);
     digitalWrite(LED_BEAT_PIN, LOW);
     clockState = false;
     ledState = false;
     
-    // Clear display via callback
     if (onClockStop) {
       onClockStop();
     }
@@ -297,13 +265,10 @@ void Sync::update() {
       lastSyncInTime = pulseTime;
       prevSyncInTime = 0;
       avgSyncInInterval = 0;
-      
-      // Reset BPM calculation
       beatPosition = 0;
       lastBeatTime = 0;
-      lastDisplayedBPM = 0;  // Reset to allow BPM display after restart
+      lastDisplayedBPM = 0;
       
-      // Show clock indicator immediately
       if (onClockStart) {
         onClockStart();
       }
@@ -311,7 +276,6 @@ void Sync::update() {
     
     sendMIDIClock();
     
-    // Advance display animation on each clock pulse
     if (display) {
       display->advanceAnimation();
     }
@@ -335,7 +299,6 @@ void Sync::update() {
         ledState = true;
         if (!clockState) lastPulseTime = currentTime;
         
-        // Calculate BPM on every beat for Sync In source
         unsigned long now = millis();
         if (beatPosition == 3) {
           if (lastBeatTime > 0) {
@@ -343,19 +306,16 @@ void Sync::update() {
             currentBPM = 240000UL / interval;
             
             #if SERIAL_DEBUG
-            // Only display if BPM changed by more than 2
             if (abs((int)currentBPM - (int)lastDisplayedBPM) > 2) {
               DEBUG_PRINT("BPM: ");
               DEBUG_PRINTLN(currentBPM);
               lastDisplayedBPM = currentBPM;
               
-              // Update display via callback
               if (onBPMUpdate) {
                 onBPMUpdate(currentBPM);
               }
             }
             #else
-            // In non-debug mode, still call display callback
             if (abs((int)currentBPM - (int)lastDisplayedBPM) > 2) {
               lastDisplayedBPM = currentBPM;
               if (onBPMUpdate) {
@@ -383,12 +343,9 @@ void Sync::update() {
         ppqnCounter = 0;
         avgSyncInInterval = 0;
         prevSyncInTime = 0;
-        
-        // Reset BPM calculation
         beatPosition = 0;
         lastBeatTime = 0;
         
-        // Clear display via callback
         if (onClockStop) {
           onClockStop();
         }
@@ -400,12 +357,9 @@ void Sync::update() {
         activeSource = CLOCK_SOURCE_NONE;
         isPlaying = false;
         ppqnCounter = 0;
-        
-        // Reset BPM calculation
         beatPosition = 0;
         lastBeatTime = 0;
         
-        // Clear display via callback
         if (onClockStop) {
           onClockStop();
         }
@@ -432,17 +386,14 @@ void Sync::checkUSBTimeout() {
   unsigned long now = millis();
   if ((now - lastUSBClockTime) > (avgUSBClockInterval * 3)) {
     usbIsPlaying = false;
-    isPlaying = false;  // Added: stop the clock
+    isPlaying = false;
     activeSource = CLOCK_SOURCE_NONE;
     avgUSBClockInterval = 0;
     prevUSBClockTime = 0;
-    ppqnCounter = 0;  // Added: reset counter
-    
-    // Reset BPM calculation
+    ppqnCounter = 0;
     beatPosition = 0;
     lastBeatTime = 0;
     
-    // Clear display via callback
     if (onClockStop) {
       onClockStop();
     }

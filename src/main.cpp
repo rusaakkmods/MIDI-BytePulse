@@ -1,7 +1,5 @@
 /**
  * MIDI BytePulse - Pro Micro USB MIDI Sync Box
- * Hardware: SparkFun Pro Micro (ATmega32U4, 5V, 16MHz)
- * Pure MIDI forwarding and clock sync
  */
 
 #include <Arduino.h>
@@ -15,20 +13,16 @@ MIDIHandler midiHandler;
 Sync sync;
 Display display;
 
-// BPM update callback
 void onBPMChanged(uint16_t bpm) {
   display.setBPM(bpm);
 }
 
-// Clock stop callback
 void onClockStopped() {
   display.clear();
 }
 
-// Clock start callback
 void onClockStarted() {
-  // Just stop idle animation, wait for BPM to be calculated
-  // Display will show "PlaY" briefly from the Start message handler
+
 }
 
 void syncInInterrupt() {
@@ -41,19 +35,18 @@ void processUSBMIDI() {
     
     if (rx.header == 0) break;
     
-    // Handle realtime messages
     if (rx.header == 0x0F) {
       switch (rx.byte1) {
-        case 0xF8:  // Clock
+        case 0xF8: 
           sync.handleClock(CLOCK_SOURCE_USB);
           break;
-        case 0xFA:  // Start
+        case 0xFA:
           sync.handleStart(CLOCK_SOURCE_USB);
           break;
-        case 0xFB:  // Continue
+        case 0xFB: 
           sync.handleStart(CLOCK_SOURCE_USB);
           break;
-        case 0xFC:  // Stop
+        case 0xFC: 
           sync.handleStop(CLOCK_SOURCE_USB);
           break;
       }
@@ -69,17 +62,15 @@ void setup() {
   DEBUG_PRINTLN("BPM monitoring active (change threshold: >2 BPM)");
   #endif
   
-  // Display disabled due to hardware noise interference with MIDI
-  // To use display: add 10Ω resistor + 100nF cap on display VCC
-  // Or use separate 5V power supply for display module
-  display.begin();  // Animates segments for 2 seconds
-  display.clear();  // Clear display after animation
+
+  display.begin();
+  display.clear(); 
   
   sync.begin();
-  sync.setDisplay(&display);  // Set display reference for animation sync
-  sync.onBPMUpdate = onBPMChanged;  // Set callback for BPM updates
-  sync.onClockStop = onClockStopped;  // Set callback for clock stop
-  sync.onClockStart = onClockStarted;  // Set callback for clock start
+  sync.setDisplay(&display); 
+  sync.onBPMUpdate = onBPMChanged; 
+  sync.onClockStop = onClockStopped; 
+  sync.onClockStart = onClockStarted;  
   midiHandler.setSync(&sync);
   midiHandler.setDisplay(&display);
   midiHandler.begin();
@@ -91,6 +82,6 @@ void loop() {
   sync.update();
   processUSBMIDI();
   midiHandler.update();
-  midiHandler.flushBuffer();  // This already calls MidiUSB.flush()
-  display.flush();  // Non-blocking incremental display update
+  midiHandler.flushBuffer();
+  display.flush(); 
 }

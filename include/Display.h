@@ -1,8 +1,3 @@
-/**
- * MIDI BytePulse - Display Handler
- * Non-blocking TM1637 display management using AceSegment
- */
-
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
@@ -18,12 +13,12 @@ public:
   void setBPM(uint16_t bpm);
   void setSource(const char* source);
   void clear();
-  void flush();                // Non-blocking incremental flush - call every loop
-  void showMIDIMessage(const char* type, uint8_t data, uint8_t channel = 0);  // Show brief MIDI message
-  void showPlay();  // Show "PlaY" briefly
-  void showStop();  // Show "StoP" briefly
-  void advanceAnimation();  // Advance play animation one step (call on MIDI clock)
-  void setBeat(uint8_t beat);  // Set current beat position (0-3)
+  void flush();
+  void showMIDIMessage(const char* type, uint8_t data, uint8_t channel = 0);
+  void showPlay();
+  void showStop();
+  void advanceAnimation();
+  void setBeat(uint8_t beat);
 
 private:
   ace_tmi::SimpleTmi1637Interface* tmiInterface = nullptr;
@@ -37,10 +32,10 @@ private:
   unsigned long midiMessageTime = 0;
   bool showingMIDIMessage = false;
   bool animationNeedsUpdate = false;
-  uint8_t currentBeat = 0;  // Track current beat (0-3) for decimal display
+  uint8_t currentBeat = 0;
   
   void initializeHardware();
   uint8_t charToSegment(char c);
 };
 
-#endif  // DISPLAY_H
+#endif

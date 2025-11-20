@@ -1,13 +1,9 @@
-/**
- * MIDI BytePulse - Sync Handler
- */
-
 #ifndef SYNC_H
 #define SYNC_H
 
 #include <Arduino.h>
 
-class Display;  // Forward declaration
+class Display;
 
 enum ClockSource {
   CLOCK_SOURCE_NONE,
@@ -28,7 +24,6 @@ public:
   bool isClockRunning() const { return isPlaying; }
   uint16_t getCurrentBPM() const { return currentBPM; }
   
-  // BPM update callback - set this to update display
   void (*onBPMUpdate)(uint16_t bpm) = nullptr;
   void (*onClockStop)() = nullptr;
   void (*onClockStart)() = nullptr;
@@ -59,14 +54,12 @@ private:
   bool usbIsPlaying = false;
   bool syncInIsPlaying = false;
   ClockSource activeSource = CLOCK_SOURCE_NONE;
-  
-  // BPM calculation
   byte beatPosition = 0;
   unsigned long lastBeatTime = 0;
   uint16_t currentBPM = 0;
-  uint16_t lastDisplayedBPM = 0;  // For change detection
+  uint16_t lastDisplayedBPM = 0;
   
-  Display* display = nullptr;  // Display reference for animation sync
+  Display* display = nullptr;
 };
 
-#endif  // SYNC_H
+#endif
