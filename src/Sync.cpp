@@ -160,9 +160,11 @@ void Sync::handleStart(ClockSource source) {
 void Sync::handleStop(ClockSource source) {
   if (source == CLOCK_SOURCE_USB) {
     usbIsPlaying = false;
+    isPlaying = false;  // Added: properly stop playback
     activeSource = CLOCK_SOURCE_NONE;
     avgUSBClockInterval = 0;
     prevUSBClockTime = 0;
+    ppqnCounter = 0;  // Added: reset counter
     
     return;
   }
@@ -267,9 +269,11 @@ void Sync::checkUSBTimeout() {
   unsigned long now = millis();
   if ((now - lastUSBClockTime) > (avgUSBClockInterval * 3)) {
     usbIsPlaying = false;
+    isPlaying = false;  // Added: stop the clock
     activeSource = CLOCK_SOURCE_NONE;
     avgUSBClockInterval = 0;
     prevUSBClockTime = 0;
+    ppqnCounter = 0;  // Added: reset counter
   }
 }
 
