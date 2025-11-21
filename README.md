@@ -36,7 +36,7 @@
   - USB MIDI → DIN MIDI OUT (all channel messages + clock)
   - No DIN MIDI IN → DIN MIDI OUT loop (prevents feedback)
 - **Standard Clock Messages** - Start (0xFA), Stop (0xFC), Continue (0xFB), Clock (0xF8)
-- **Master Clock Distribution** - USB and Sync Input clocks forwarded to DIN MIDI OUT
+- **Master Clock Distribution** - USB MIDI and Sync Input clocks forwarded to both USB and DIN MIDI OUT
 - **Active Sensing** - Automatic timeout detection for USB sources
 - **No Latency** - Optimized for real-time performance with zero blocking delays
 
@@ -99,8 +99,8 @@
 
 ### Clock Source Priority
 1. **Sync Input** - Highest priority (modular/analog gear)
-2. **DIN MIDI** - Hardware MIDI IN port
-3. **USB MIDI** - Computer/DAW (with 3-second timeout)
+2. **USB MIDI** - Computer/DAW (with 3-second timeout)
+3. **DIN MIDI** - Hardware MIDI IN port (lowest priority)
 
 When multiple sources are active, the device automatically switches to the highest priority source.
 
@@ -185,6 +185,30 @@ DAW (USB MIDI) → BytePulse → Sync OUT → Eurorack
 - All standard MIDI messages received and processed
 - Clock messages trigger sync engine
 - Non-clock messages forwarded between USB ↔ DIN
+
+---
+
+## 🧪 Testing
+
+### Unit Tests
+Automated tests verify core logic without hardware:
+
+```bash
+# Run all unit tests
+pio test -e native
+
+# Run specific test suite
+pio test -e native -f test_bpm_calculation
+pio test -e native -f test_clock_priority
+pio test -e native -f test_display_format
+```
+
+**Test Coverage:**
+- **BPM Calculation** - 12 tests (30-300 BPM range, edge cases, rounding)
+- **Clock Priority** - 7 tests (Sync In > USB > DIN, fallback behavior)
+- **Display Format** - 11 tests (7-segment encoding, BPM formatting)
+
+**Total: 30 unit tests** - See [test/TESTING_GUIDE.md](test/TESTING_GUIDE.md) for complete testing documentation.
 
 ---
 

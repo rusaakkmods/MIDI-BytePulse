@@ -2,11 +2,95 @@
 
 ## 1. Overview
 
-This document provides a systematic testing guide for the **rMODS MIDI BytePulse** device. It includes feature descriptions, test scenarios, acceptance criteria (in Gherkin format), and edge case coverage. Testers should work through each scenario methodically to ensure full device functionality.
+This document provides a systematic testing guide for the **rMODS MIDI BytePulse** device. It includes:
+- **Unit Tests** - Automated tests for core logic (BPM calculation, clock priority, display formatting)
+- **Integration Tests** - Manual hardware tests with real MIDI equipment
+- **Edge Case Tests** - Stress tests and boundary condition validation
+
+Testers should start with unit tests to verify core logic, then proceed to hardware integration testing.
 
 ---
 
-## 2. Device Features
+## 2. Unit Tests (Automated)
+
+### 2.1. Running Unit Tests
+
+Unit tests run on your computer (not the device) and test core logic without hardware dependencies.
+
+**Prerequisites:**
+- PlatformIO installed (via VS Code or CLI)
+
+**Run all unit tests:**
+```bash
+pio test -e native
+```
+
+**Run specific test:**
+```bash
+pio test -e native -f test_bpm_calculation
+pio test -e native -f test_clock_priority
+pio test -e native -f test_display_format
+```
+
+### 2.2. Available Unit Tests
+
+#### Test Suite 1: BPM Calculation (`test_bpm_calculation`)
+Tests the BPM calculation algorithm (240,000 / interval).
+
+**What it tests:**
+- Standard tempos: 60, 90, 120, 128, 140, 180, 240 BPM
+- Edge cases: 30 BPM (minimum), 300 BPM (maximum)
+- Zero interval handling
+- Rounding behavior
+
+**Expected result:** All 12 tests pass
+
+#### Test Suite 2: Clock Source Priority (`test_clock_priority`)
+Tests the priority logic: Sync In > USB > DIN.
+
+**What it tests:**
+- SYNC_IN blocks USB and DIN
+- USB blocks DIN
+- Fallback when higher priority stops
+- Initial state accepts any source
+- Complete priority chain
+
+**Expected result:** All 7 tests pass
+
+#### Test Suite 3: Display Formatting (`test_display_format`)
+Tests 7-segment character conversion and BPM formatting.
+
+**What it tests:**
+- Digit conversion (0-9)
+- Letter conversion (I, d, L, e for "IdLE")
+- Special characters (-, _)
+- BPM digit extraction (5, 30, 60, 120, 300, 999 BPM)
+- Case insensitivity
+
+**Expected result:** All 11 tests pass
+
+### 2.3. Interpreting Unit Test Results
+
+**Success output:**
+```
+test/test_bpm_calculation/test_bpm_calc.cpp:12:test_bpm_calculation_120bpm:PASS
+...
+----------------------
+12 Tests 0 Failures 0 Ignored
+OK
+```
+
+**Failure output:**
+```
+test/test_bpm_calculation/test_bpm_calc.cpp:12:test_bpm_calculation_120bpm:FAIL:
+Expected 120 Was 119
+```
+
+If any test fails, it indicates a regression or bug in core logic that needs fixing before hardware testing.
+
+---
+
+## 3. Device Features
 
 | Feature | Description |
 |---------|-------------|
@@ -39,7 +123,9 @@ This document provides a systematic testing guide for the **rMODS MIDI BytePulse
 
 ---
 
-## 4. Core Functionality Tests
+## 4. Core Functionality Tests (Hardware Integration)
+
+These tests require physical hardware and real MIDI equipment. **Run unit tests first** to verify core logic before hardware testing.
 
 ### Test Case 1: USB MIDI Clock Master
 
@@ -491,9 +577,91 @@ Feature: USB Clock Timeout
 
 ---
 
+### Test Case 11: Sync Cable Detection
+
+**Objective:** Verify device automatically enables/disables sync I/O based on cable connection.
+
+**Setup:**
+1. Power on the device.
+2. Connect USB or DIN MIDI clock source at 120 BPM.
+3. Have 3.5mm patch cables ready.
+
+**Test Steps:**
+1. Start MIDI clock with no sync cables connected.
+2. Verify device syncs to MIDI clock normally.
+3. Connect a cable to Sync OUT jack.
+4. Verify sync pulses appear on Sync OUT.
+5. Disconnect Sync OUT cable.
+6. Verify sync pulses stop on Sync OUT.
+7. Connect a cable to Sync IN jack.
+8. Send analog clock pulses (24 PPQN) to Sync IN at 140 BPM.
+9. Verify device switches to Sync IN as clock source (highest priority).
+10. Press button to verify BPM shows "t.140".
+11. Disconnect Sync IN cable.
+12. Verify device falls back to MIDI clock source.
+13. Press button to verify BPM shows "t.120".
+
+**Expected Results:**
+- ✅ Sync OUT only generates pulses when cable is connected.
+- ✅ Sync IN only accepts input when cable is connected.
+- ✅ Device automatically detects cable insertion/removal.
+- ✅ Clock source priority respects cable detection (unplugged = disabled).
+- ✅ Display updates correctly when switching sources.
+
+**Acceptance Criteria (Gherkin):**
+```gherkin
+Feature: Sync Cable Detection
+  Scenario: Enable sync I/O only when cables are connected
+    Given the device is powered on
+    When a sync cable is connected to Sync OUT
+    Then sync pulses are generated on Sync OUT
+    When the Sync OUT cable is disconnected
+    Then sync pulses stop on Sync OUT
+    When a sync cable is connected to Sync IN with active clock
+    Then the device switches to Sync IN as the clock source
+    When the Sync IN cable is disconnected
+    Then the device falls back to the next priority clock source
+```
+
+---
+
 ## 5. Edge Case Tests
 
-### Test Case 11: Power Loss During Operation
+### Test Case 12: Sync Out Cable Hot Swap
+
+**Objective:** Verify Sync OUT automatically starts/stops when cable is inserted/removed during operation.
+
+**Setup:**
+1. Connect USB MIDI clock at 120 BPM.
+2. Start playback.
+
+**Test Steps:**
+1. With clock running, plug in Sync OUT cable.
+2. Verify sync pulses start immediately (use LED or oscilloscope).
+3. While clock is still running, unplug Sync OUT cable.
+4. Verify sync pulses stop immediately.
+5. Plug cable back in while clock is running.
+6. Verify sync pulses resume immediately.
+
+**Expected Results:**
+- ✅ Sync OUT responds to cable changes without restarting device.
+- ✅ No delay or glitches when cable is inserted/removed.
+- ✅ USB and DIN MIDI clock continue unaffected.
+
+**Acceptance Criteria (Gherkin):**
+```gherkin
+Feature: Sync OUT Hot Swap
+  Scenario: Automatically enable/disable Sync OUT during operation
+    Given the device is running with active MIDI clock
+    When a cable is plugged into Sync OUT
+    Then sync pulses start immediately
+    When the cable is unplugged from Sync OUT
+    Then sync pulses stop immediately
+```
+
+---
+
+### Test Case 13: Power Loss During Operation
 
 **Objective:** Verify device recovers cleanly after power loss.
 
@@ -521,7 +689,7 @@ Feature: Power Recovery
 
 ---
 
-### Test Case 12: Simultaneous USB and DIN Clock Sources
+### Test Case 14: Simultaneous USB and DIN Clock Sources
 
 **Objective:** Verify device handles simultaneous clock sources without jitter.
 
@@ -549,7 +717,7 @@ Feature: Clock Source Priority
 
 ---
 
-### Test Case 13: Invalid or Corrupted MIDI Data
+### Test Case 15: Invalid or Corrupted MIDI Data
 
 **Objective:** Verify device ignores malformed MIDI messages and continues forwarding valid ones.
 
@@ -578,7 +746,7 @@ Feature: Robust MIDI Parsing
 
 ---
 
-### Test Case 14: Button Bounce or Rapid Presses
+### Test Case 16: Button Bounce or Rapid Presses
 
 **Objective:** Verify button debouncing prevents erratic display behavior.
 
@@ -606,7 +774,7 @@ Feature: Button Debouncing
 
 ---
 
-### Test Case 15: Extreme BPM Values
+### Test Case 17: Extreme BPM Values
 
 **Objective:** Verify device handles very low and very high BPM values.
 
@@ -635,7 +803,7 @@ Feature: BPM Range Handling
 
 ---
 
-### Test Case 16: MIDI Buffer Overflow
+### Test Case 18: MIDI Buffer Overflow
 
 **Objective:** Verify device handles high MIDI traffic without crashing.
 
@@ -665,7 +833,7 @@ Feature: Buffer Management
 
 ---
 
-### Test Case 17: Hot Plugging USB or MIDI Cables
+### Test Case 19: Hot Plugging USB or MIDI Cables
 
 **Objective:** Verify device handles cable insertion/removal during operation.
 
@@ -711,15 +879,17 @@ Use this checklist to track your testing progress:
 - [ ] Test Case 8.2: Idle Display Behavior
 - [ ] Test Case 9: Clock Source Priority
 - [ ] Test Case 10: USB Active Sensing and Timeout
+- [ ] Test Case 11: Sync Cable Detection
 
 **Edge Case Tests:**
-- [ ] Test Case 11: Power Loss During Operation
-- [ ] Test Case 12: Simultaneous USB and DIN Clock Sources
-- [ ] Test Case 13: Invalid or Corrupted MIDI Data
-- [ ] Test Case 14: Button Bounce or Rapid Presses
-- [ ] Test Case 15: Extreme BPM Values
-- [ ] Test Case 16: MIDI Buffer Overflow
-- [ ] Test Case 17: Hot Plugging USB or MIDI Cables
+- [ ] Test Case 12: Sync Out Cable Hot Swap
+- [ ] Test Case 13: Power Loss During Operation
+- [ ] Test Case 14: Simultaneous USB and DIN Clock Sources
+- [ ] Test Case 15: Invalid or Corrupted MIDI Data
+- [ ] Test Case 16: Button Bounce or Rapid Presses
+- [ ] Test Case 17: Extreme BPM Values
+- [ ] Test Case 18: MIDI Buffer Overflow
+- [ ] Test Case 19: Hot Plugging USB or MIDI Cables
 
 ---
 
