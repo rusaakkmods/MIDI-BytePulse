@@ -7,6 +7,9 @@
 extern midi::MidiInterface<midi::SerialMIDI<HardwareSerial>> MIDI_DIN;
 
 #define PULSE_WIDTH_US 5000
+#define PULSE_WIDTH_MIN_MS 10
+#define PULSE_WIDTH_MAX_MS 100
+unsigned long ledPulseWidth = PULSE_WIDTH_MIN_MS;
 #define PPQN 24
 
 void Sync::begin() {
@@ -126,29 +129,29 @@ void Sync::handleClock(ClockSource source) {
   }
   
   if (ppqnCounter == 0) {
-    digitalWrite(LED_BEAT_PIN, HIGH);
-    ledState = true;
-    if (!clockState) {
-      lastPulseTime = micros();
-    }
-    
     unsigned long now = millis();
-    
+    if (!ledState) {
+      digitalWrite(LED_BEAT_PIN, HIGH);
+      ledState = true;
+      lastPulseTime = now;
+    }
     if (beatPosition == 0 && lastBeatTime == 0) {
       lastBeatTime = now;
     }
-    
     if (beatPosition == 3) {
       if (lastBeatTime > 0) {
         unsigned long interval = now - lastBeatTime;
         currentBPM = 240000UL / interval;
-        
+        // Set LED pulse width to 10% of beat interval, clamped
+        unsigned long dynamicPulse = interval / 10;
+        if (dynamicPulse < PULSE_WIDTH_MIN_MS) dynamicPulse = PULSE_WIDTH_MIN_MS;
+        if (dynamicPulse > PULSE_WIDTH_MAX_MS) dynamicPulse = PULSE_WIDTH_MAX_MS;
+        ledPulseWidth = dynamicPulse;
         #if SERIAL_DEBUG
         if (abs((int)currentBPM - (int)lastDisplayedBPM) >= 2) {
           DEBUG_PRINT("BPM: ");
           DEBUG_PRINTLN(currentBPM);
           lastDisplayedBPM = currentBPM;
-          
           if (onBPMUpdate) {
             onBPMUpdate(currentBPM);
           }
@@ -161,11 +164,9 @@ void Sync::handleClock(ClockSource source) {
           }
         }
         #endif
-        
         lastBeatTime = now;
       }
     }
-    
     beatPosition = (beatPosition + 1) % 4;
   }
   
@@ -384,8 +385,8 @@ void Sync::update() {
     digitalWrite(SYNC_OUT_PIN, LOW);
     clockState = false;
   }
-  
-  if (ledState && (currentTime - lastPulseTime >= PULSE_WIDTH_US)) {
+  // LED beat pulse using millis for stability, with dynamic width
+  if (ledState && (millis() - lastPulseTime >= ledPulseWidth)) {
     digitalWrite(LED_BEAT_PIN, LOW);
     ledState = false;
   }
