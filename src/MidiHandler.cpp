@@ -1,7 +1,3 @@
-/**
- * MIDI BytePulse - MIDI Handler Implementation
- */
-
 #include "MIDIHandler.h"
 #include "Sync.h"
 #include <MIDI.h>
@@ -95,7 +91,6 @@ void MIDIHandler::handleNoteOn(byte channel, byte note, byte velocity) {
 
 void MIDIHandler::handleNoteOff(byte channel, byte note, byte velocity) {
   forwardDINtoUSB(channel, 0x80, note, velocity);
-  // Don't show note off on display
 }
 
 void MIDIHandler::handleAfterTouchPoly(byte channel, byte note, byte pressure) {
@@ -104,12 +99,10 @@ void MIDIHandler::handleAfterTouchPoly(byte channel, byte note, byte pressure) {
 
 void MIDIHandler::handleControlChange(byte channel, byte controller, byte value) {
   forwardDINtoUSB(channel, 0xB0, controller, value);
-  // Don't show CC on display
 }
 
 void MIDIHandler::handleProgramChange(byte channel, byte program) {
   forwardDINtoUSB(channel, 0xC0, program, 0);
-  // Don't show PC on display
 }
 
 void MIDIHandler::handleAfterTouchChannel(byte channel, byte pressure) {
@@ -143,11 +136,9 @@ void MIDIHandler::handleSystemExclusive(byte* data, unsigned size) {
 }
 
 void MIDIHandler::handleClock() {
-  // Forward to USB MIDI
   midiEventPacket_t event = {0x0F, 0xF8, 0, 0};
   MidiUSB.sendMIDI(event);
   
-  // Forward to DIN MIDI OUT
   MIDI_DIN.sendRealTime(midi::Clock);
   
   static uint8_t clockCounter = 0;
@@ -161,11 +152,9 @@ void MIDIHandler::handleClock() {
 }
 
 void MIDIHandler::handleStart() {
-  // Forward to USB MIDI
   midiEventPacket_t event = {0x0F, 0xFA, 0, 0};
   MidiUSB.sendMIDI(event);
   
-  // Forward to DIN MIDI OUT
   MIDI_DIN.sendRealTime(midi::Start);
   
   if (sync) {
@@ -174,11 +163,9 @@ void MIDIHandler::handleStart() {
 }
 
 void MIDIHandler::handleContinue() {
-  // Forward to USB MIDI
   midiEventPacket_t event = {0x0F, 0xFB, 0, 0};
   MidiUSB.sendMIDI(event);
   
-  // Forward to DIN MIDI OUT
   MIDI_DIN.sendRealTime(midi::Continue);
   
   if (sync) {
@@ -187,11 +174,9 @@ void MIDIHandler::handleContinue() {
 }
 
 void MIDIHandler::handleStop() {
-  // Forward to USB MIDI
   midiEventPacket_t event = {0x0F, 0xFC, 0, 0};
   MidiUSB.sendMIDI(event);
   
-  // Forward to DIN MIDI OUT
   MIDI_DIN.sendRealTime(midi::Stop);
   
   if (sync) {

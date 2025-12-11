@@ -1,7 +1,3 @@
-/**
- * MIDI BytePulse - Pro Micro USB MIDI Sync Box
- */
-
 #include <Arduino.h>
 #include <MIDIUSB.h>
 #include "config.h"
@@ -21,10 +17,8 @@ void processUSBMIDI() {
     
     if (rx.header == 0) break;
 
-    // Always forward to DIN OUT
     midiHandler.forwardUSBtoDIN(rx);
 
-    // Also handle sync/clock logic for real-time messages
     if (rx.header == 0x0F) {
       switch (rx.byte1) {
         case 0xF8: 
@@ -47,7 +41,7 @@ void processUSBMIDI() {
 void setup() {
   #if SERIAL_DEBUG
   Serial.begin(DEBUG_BAUD_RATE);
-  while (!Serial && millis() < 3000);  // Wait up to 3 seconds for Serial
+  while (!Serial && millis() < 3000);
   DEBUG_PRINTLN("MIDI BytePulse - Debug Mode");
   DEBUG_PRINTLN("BPM monitoring active (change threshold: >2 BPM)");
   #endif

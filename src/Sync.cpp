@@ -5,10 +5,6 @@
 
 extern midi::MidiInterface<midi::SerialMIDI<HardwareSerial>> MIDI_DIN;
 
-#define CLOCK_PULSE_WIDTH_US 5000  // SYNC_OUT pulse width (5ms)
-#define LED_PULSE_WIDTH_MS 50      // Pulse LED width (50ms) - safe up to 400 BPM
-#define PPQN 24
-
 void Sync::begin() {
   pinMode(SYNC_OUT_PIN, OUTPUT);
   pinMode(DISPLAY_CLK_PIN, OUTPUT);
@@ -16,16 +12,14 @@ void Sync::begin() {
   pinMode(SYNC_IN_DETECT_PIN, INPUT_PULLUP);
   pinMode(LED_PULSE_PIN, OUTPUT);
   
-  // Rotary switch pins (with pullups) - one per position
   pinMode(SYNC_RATE_PIN_1, INPUT_PULLUP);
   pinMode(SYNC_RATE_PIN_2, INPUT_PULLUP);
   pinMode(SYNC_RATE_PIN_3, INPUT_PULLUP);
   pinMode(SYNC_RATE_PIN_4, INPUT_PULLUP);
   pinMode(SYNC_RATE_PIN_5, INPUT_PULLUP);
-  pinMode(SYNC_RATE_PIN_6, INPUT_PULLUP);
   
-  // Read sync rate from rotary switch (controls both SYNC_IN and SYNC_OUT)
   syncRate = readSyncInRate();
+  lastSwitchReadTime = millis();
   
   digitalWrite(SYNC_OUT_PIN, LOW);
   digitalWrite(DISPLAY_CLK_PIN, LOW);
@@ -89,20 +83,16 @@ void Sync::handleClock(ClockSource source) {
   
   if (!isPlaying) return;
   
-  // DISPLAY_CLK: Always output at 1 PPQN for TinyPulse Display (once per beat)
   if (ppqnCounter == 0) {
     digitalWrite(DISPLAY_CLK_PIN, HIGH);
     displayClkState = true;
     displayClkPulseTime = millis();
   }
   
-  // SYNC_OUT: Output pulse at selected PPQN rate (configurable via switch)
-  // Use modulo to divide 24 PPQN down to target rate
   uint8_t divisor = getSyncOutDivisor();
   if (ppqnCounter % divisor == 0) {
     unsigned long now = millis();
     
-    // Send SYNC_OUT pulse at configured rate
     digitalWrite(SYNC_OUT_PIN, HIGH);
     clockState = true;
     lastPulseTime = micros();
@@ -213,19 +203,15 @@ void Sync::update() {
       }
     }
     
-    // Send multiple MIDI Clocks based on SYNC_IN rate
-    // E.g., if SYNC_IN is 2 PPQN, send 12 MIDI Clocks per pulse (24/2=12)
     uint8_t multiplier = getSyncInMultiplier();
     for (uint8_t i = 0; i < multiplier; i++) {
       sendMIDIClock();
     }
     
     if (syncInIsPlaying) {
-      // DISPLAY_CLK: Always 1 PPQN for TinyPulse
       digitalWrite(DISPLAY_CLK_PIN, HIGH);
       displayClkState = true;
       
-      // SYNC_OUT: Variable PPQN based on switch
       digitalWrite(SYNC_OUT_PIN, HIGH);
       clockState = true;
       lastPulseTime = currentTime;
@@ -248,7 +234,7 @@ void Sync::update() {
         }
       }
     }
-    else if ((millis() - lastSyncInTime) > 3000) {  // 3 second timeout
+    else if ((millis() - lastSyncInTime) > 3000) {
       syncInIsPlaying = false;
       if (activeSource == CLOCK_SOURCE_SYNC_IN) {
         activeSource = CLOCK_SOURCE_NONE;
@@ -264,20 +250,26 @@ void Sync::update() {
   
   checkUSBTimeout();
   
-  // Turn off SYNC_OUT pulse after 5ms
+  unsigned long currentMillis = millis();
+  if (currentMillis - lastSwitchReadTime >= 100) {
+    SyncInRate newRate = readSyncInRate();
+    if (newRate != syncRate) {
+      syncRate = newRate;
+    }
+    lastSwitchReadTime = currentMillis;
+  }
+  
   if (clockState && (currentTime - lastPulseTime >= CLOCK_PULSE_WIDTH_US)) {
     digitalWrite(SYNC_OUT_PIN, LOW);
     clockState = false;
   }
   
-  // Turn off DISPLAY_CLK pulse after 5ms
   unsigned long currentMillis = millis();
   if (displayClkState && (currentMillis - displayClkPulseTime >= 5)) {
     digitalWrite(DISPLAY_CLK_PIN, LOW);
     displayClkState = false;
   }
   
-  // Pulse LED (fixed 50ms width)
   if (ledState && (currentMillis - lastPulseTime >= LED_PULSE_WIDTH_MS)) {
     digitalWrite(LED_PULSE_PIN, LOW);
     ledState = false;
@@ -288,7 +280,7 @@ void Sync::checkUSBTimeout() {
   if (!usbIsPlaying) return;
   
   unsigned long now = millis();
-  if ((now - lastUSBClockTime) > 3000) {  // 3 second timeout
+  if ((now - lastUSBClockTime) > 3000) {
     usbIsPlaying = false;
     isPlaying = false;
     activeSource = CLOCK_SOURCE_NONE;
@@ -305,32 +297,19 @@ bool Sync::isSyncInConnected() {
 }
 
 SyncInRate Sync::readSyncInRate() {
-  // Simple direct reading - one pin per position, no encoding
-  // Delay a bit for mechanical settling, then read
-  delay(5);
-  
-  // Check each pin - whichever is LOW (connected to GND) determines rate
   if (digitalRead(SYNC_RATE_PIN_1) == LOW) return SYNC_IN_1_PPQN;
   if (digitalRead(SYNC_RATE_PIN_2) == LOW) return SYNC_IN_2_PPQN;
   if (digitalRead(SYNC_RATE_PIN_3) == LOW) return SYNC_IN_4_PPQN;
   if (digitalRead(SYNC_RATE_PIN_4) == LOW) return SYNC_IN_6_PPQN;
   if (digitalRead(SYNC_RATE_PIN_5) == LOW) return SYNC_IN_24_PPQN;
-  if (digitalRead(SYNC_RATE_PIN_6) == LOW) return SYNC_IN_48_PPQN;
-  
-  // Default if no pin is grounded (shouldn't happen with proper switch)
   return SYNC_IN_2_PPQN;
 }
 
 uint8_t Sync::getSyncInMultiplier() {
-  // Calculate how many MIDI Clocks to send per SYNC_IN pulse
-  // MIDI Clock is always 24 PPQN, so multiplier = 24 / syncRate
   return 24 / (uint8_t)syncRate;
 }
 
 uint8_t Sync::getSyncOutDivisor() {
-  // Calculate SYNC_OUT divisor: how many MIDI Clocks per SYNC_OUT pulse
-  // SYNC_OUT pulses at the selected PPQN rate
-  // For example: if syncRate = 2 PPQN, output 1 pulse every 12 MIDI Clocks (24/2)
   return 24 / (uint8_t)syncRate;
 }
 

@@ -20,7 +20,7 @@
 #define SYNC_IN_PIN           7
 #define SYNC_IN_DETECT_PIN    6
 
-// Sync Rate Selector (1P6T rotary switch - controls BOTH SYNC_IN and SYNC_OUT)
+// Sync Rate Selector (1P5T rotary switch - controls BOTH SYNC_IN and SYNC_OUT)
 // Sets the PPQN rate for analog sync signals in both directions:
 //   SYNC_IN:  External clock → MIDI (multiply up to 24 PPQN)
 //   SYNC_OUT: MIDI → External device (divide down from 24 PPQN)
@@ -30,10 +30,14 @@
 #define SYNC_RATE_PIN_3       16   // Position 3 = 4 PPQN (Roland DIN Sync)
 #define SYNC_RATE_PIN_4       14   // Position 4 = 6 PPQN
 #define SYNC_RATE_PIN_5       15   // Position 5 = 24 PPQN (MIDI passthrough)
-#define SYNC_RATE_PIN_6       A0   // Position 6 = 48 PPQN (High-res)
 
 // LED
 #define LED_PULSE_PIN       8
+
+// sync timing
+#define CLOCK_PULSE_WIDTH_US 5000
+#define LED_PULSE_WIDTH_MS 50
+#define PPQN 24
 
 // Debug
 #define SERIAL_DEBUG        false

@@ -6,8 +6,7 @@ enum SyncInRate {
   SYNC_IN_2_PPQN = 2,
   SYNC_IN_4_PPQN = 4,
   SYNC_IN_6_PPQN = 6,
-  SYNC_IN_24_PPQN = 24,
-  SYNC_IN_48_PPQN = 48
+  SYNC_IN_24_PPQN = 24
 };
 
 // Test SYNC_IN multiplier calculation
@@ -60,13 +59,6 @@ void test_24_ppqn_multiplier() {
     uint8_t multiplier = SyncRateCalculator::getSyncInMultiplier(SYNC_IN_24_PPQN);
     TEST_ASSERT_EQUAL_UINT8(1, multiplier);
     // 1 pulse → 1 MIDI Clock (1:1 passthrough)
-}
-
-// Test 48 PPQN multiplier
-void test_48_ppqn_multiplier() {
-    uint8_t multiplier = SyncRateCalculator::getSyncInMultiplier(SYNC_IN_48_PPQN);
-    TEST_ASSERT_EQUAL_UINT8(0, multiplier);
-    // Note: 48 PPQN is higher than MIDI, results in 0 (handled specially in firmware)
 }
 
 // Test SYNC_OUT divisor for 1 PPQN
@@ -184,7 +176,6 @@ int main(int argc, char **argv) {
     RUN_TEST(test_4_ppqn_multiplier);
     RUN_TEST(test_6_ppqn_multiplier);
     RUN_TEST(test_24_ppqn_multiplier);
-    RUN_TEST(test_48_ppqn_multiplier);
     
     // SYNC_OUT divisor tests
     RUN_TEST(test_sync_out_1_ppqn_divisor);

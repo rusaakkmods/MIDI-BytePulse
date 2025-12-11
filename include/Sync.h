@@ -11,12 +11,11 @@ enum ClockSource {
 };
 
 enum SyncInRate {
-  SYNC_IN_1_PPQN = 1,    // Modular/Analog sequencers
-  SYNC_IN_2_PPQN = 2,    // Korg Volca sync
-  SYNC_IN_4_PPQN = 4,    // Roland DIN sync
-  SYNC_IN_6_PPQN = 6,    // 6 PPQN (24/6 = 4 clocks per pulse)
-  SYNC_IN_24_PPQN = 24,  // MIDI Clock (passthrough)
-  SYNC_IN_48_PPQN = 48   // High-res MIDI
+  SYNC_IN_1_PPQN = 1,
+  SYNC_IN_2_PPQN = 2,
+  SYNC_IN_4_PPQN = 4,
+  SYNC_IN_6_PPQN = 6,
+  SYNC_IN_24_PPQN = 24
 };
 
 class Sync {
@@ -61,6 +60,7 @@ private:
   SyncInRate syncRate = SYNC_IN_2_PPQN;  // Switch setting (controls both IN and OUT)
   uint8_t syncInPulseCounter = 0;        // Counter for SYNC_IN PPQN multiplication
   uint8_t syncOutPulseCounter = 0;       // Counter for SYNC_OUT PPQN division
+  unsigned long lastSwitchReadTime = 0;  // For non-blocking switch debouncing
 };
 
 #endif

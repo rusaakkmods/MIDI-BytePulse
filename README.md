@@ -1,10 +1,11 @@
 # rMODS MIDI BytePulse
 
-**Universal MIDI Clock Sync Box** - Multi-source MIDI clock synchronization with analog sync I/O, BPM display, and intelligent source switching.
+**Universal MIDI Clock Router & Sync Converter** - Multi-source MIDI clock synchronization with intelligent priority switching and bidirectional analog sync rate conversion.
 
 [![Platform](https://img.shields.io/badge/platform-ATmega32U4-blue.svg)](https://www.sparkfun.com/products/12640)
 [![Framework](https://img.shields.io/badge/framework-Arduino-00979D.svg)](https://www.arduino.cc/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-21%20passed-brightgreen.svg)](test/)
 
 ---
 
@@ -13,32 +14,30 @@
 ### Multi-Source Clock Support
 - **USB MIDI Clock** - Computer/DAW sync via native USB MIDI
 - **DIN MIDI Clock** - Hardware MIDI IN port (5-pin DIN)
-- **Analog Sync Input** - Compatible with modular/eurorack gear (3.5mm jack)
-- **Intelligent Source Switching** - Automatically selects active clock source with priority management
+- **Analog Sync Input** - Universal sync input with 5-position PPQN selector (1, 2, 4, 6, 24 PPQN)
+- **Intelligent Priority System** - Automatic source switching: SYNC_IN > USB > DIN
 
 ### Clock Distribution
-- **USB MIDI Clock Output** - Send sync to DAW/software
-- **DIN MIDI Clock Output** - Hardware MIDI OUT (5-pin DIN)
-- **Analog Sync Output** - Trigger output for modular/analog gear (3.5mm jack)
-- **Cable Detection** - Automatically enables/disables outputs based on connected cables
+- **USB MIDI Clock Output** - Standard 24 PPQN to DAW/software
+- **DIN MIDI Clock Output** - Standard 24 PPQN to hardware devices
+- **Analog Sync Output** - Variable PPQN (1-48) via rotary switch
+- **Display Clock Output** - Dedicated 1 PPQN output for TinyPulse Display module
 
-### Display & Monitoring
-- **4-Digit 7-Segment Display** (TM1637)
-- **Real-time BPM Calculation** - Accurate tempo detection from any source
-- **Clock Animation** - Rotating pattern shows clock activity
-- **Beat Position Indicator** - Decimal points show quarter note positions (1-4)
-- **Push Button BPM Display** - Hold button to view current tempo ("t.###")
-- **Idle Display** - Shows "IdLE" when no clock is detected
+### Universal Sync Rate Converter
+**6-Position Rotary Switch** - Controls both SYNC_IN and SYNC_OUT rates:
+- **Position 1:** 1 PPQN (Modular, Arturia BeatStep Pro)
+- **Position 2:** 2 PPQN (Korg Volca series)
+- **Position 3:** 4 PPQN (Roland DIN Sync)
+- **Position 4:** 6 PPQN (Custom devices)
+- **Position 5:** 24 PPQN (MIDI passthrough)
+- **Position 6:** 48 PPQN (High-resolution sync)
 
 ### MIDI Message Handling
 - **Bidirectional MIDI Routing:**
-  - DIN MIDI IN → USB MIDI OUT (all messages)
-  - USB MIDI → DIN MIDI OUT (all channel messages + clock)
-  - No DIN MIDI IN → DIN MIDI OUT loop (prevents feedback)
+  - USB ↔ DIN: All MIDI messages (Clock, Start, Stop, Continue, channel messages)
+  - DIN IN → DIN OUT: Clock messages forwarded with priority rules
 - **Standard Clock Messages** - Start (0xFA), Stop (0xFC), Continue (0xFB), Clock (0xF8)
-- **Master Clock Distribution** - USB MIDI and Sync Input clocks forwarded to both USB and DIN MIDI OUT
-- **Active Sensing** - Automatic timeout detection for USB sources
-- **No Latency** - Optimized for real-time performance with zero blocking delays
+- **Zero Latency** - Optimized non-blocking architecture
 
 ---
 
@@ -47,7 +46,8 @@
 ### Platform
 - **SparkFun Pro Micro** (ATmega32U4, 5V, 16MHz)
 - Native USB MIDI support (no FTDI required)
-- 28KB Flash / 2.5KB RAM
+- **Flash:** 40.7% used (11,674 / 28,672 bytes)
+- **RAM:** 50.5% used (1,293 / 2,560 bytes)
 
 ### Pin Configuration
 
@@ -55,14 +55,19 @@
 |-----|----------|-------------|
 | 0 | MIDI IN | Hardware Serial RX (5-pin DIN) |
 | 1 | MIDI OUT | Hardware Serial TX (5-pin DIN) |
-| 5 | SYNC OUT | Analog clock output (3.5mm jack) |
-| 4 | SYNC OUT DETECT | Cable detection for sync output |
-| 7 | SYNC IN | Analog clock input (3.5mm jack) |
+| 4 | DISPLAY CLK | Fixed 1 PPQN for TinyPulse Display |
+| 5 | SYNC OUT | Variable PPQN analog clock output |
 | 6 | SYNC IN DETECT | Cable detection for sync input |
-| 8 | DISPLAY CLK | TM1637 clock line |
-| 9 | DISPLAY DIO | TM1637 data line |
-| 10 | LED (future) | Beat indicator LED |
-| 16 | BUTTON | BPM display button (INPUT_PULLUP) |
+| 7 | SYNC IN | Analog clock input (interrupt-capable) |
+| 8 | LED PULSE | Beat indicator LED (50ms pulse, 1 PPQN) |
+| 9 | SYNC RATE 1 | Rotary switch position 1 (1 PPQN) |
+| 10 | SYNC RATE 2 | Rotary switch position 2 (2 PPQN) |
+| 14 | SYNC RATE 4 | Rotary switch position 4 (6 PPQN) |
+| 15 | SYNC RATE 5 | Rotary switch position 5 (24 PPQN) |
+| 16 | SYNC RATE 3 | Rotary switch position 3 (4 PPQN) |
+| A0 | SYNC RATE 6 | Rotary switch position 6 (48 PPQN) |
+| 2, 3 | Reserved | I2C + interrupts (future: encoder) |
+| A1-A3 | Reserved | Analog inputs (future: potentiometers) |
 
 ### Connections
 
@@ -72,42 +77,49 @@
 - OUT: Pin 1 (TX1) via 220Ω resistor
 
 **Analog Sync (3.5mm mono jacks):**
-- INPUT: Pin 7 (interrupt-capable), 5V trigger signal
-- OUTPUT: Pin 5 (direct digital output), 5V trigger pulses
-- Cable detection via switched jacks to pins 4 & 6
+- SYNC_IN: Pin 7 (interrupt-capable), 5V trigger signal
+- SYNC_OUT: Pin 5, variable PPQN (1-48) based on switch, 5ms pulse width
+- DISPLAY_CLK: Pin 4, fixed 1 PPQN for TinyPulse Display, 5ms pulse width
+- Cable detection via switched jack to pin 6
 
-**Display (TM1637 4-digit):**
-- CLK: Pin 8
-- DIO: Pin 9
-- VCC: 5V
-- GND: GND
+**Rotary Switch (1P6T):**
+- Common terminal to GND
+- Position terminals to pins 9, 10, 16, 14, 15, A0
+- Internal pullups enabled (no external resistors needed)
+- For positions with dual pin connections, use 1N4148 diodes
 
-**Button:**
-- One side to Pin 16
-- Other side to GND
-- Internal pullup enabled (no external resistor needed)
+**TinyPulse Display Module (separate project):**
+- Clock: Pin 4 (DISPLAY_CLK) - always 1 PPQN
+- MIDI tap: Passive connection to MIDI IN optocoupler output
+- Provides real-time BPM display with 4-digit TM1637
+
+**LED Indicator:**
+- Pin 8: Beat pulse LED (1 PPQN, 50ms pulse)
+- Connect LED + current-limiting resistor to pin 8, cathode to GND
 
 ---
 
 ## ⚙️ Technical Specifications
 
 ### Timing & Synchronization
-- **PPQN Resolution:** 24 PPQN (Pulses Per Quarter Note) - MIDI standard
-- **BPM Range:** 30-300 BPM (auto-calculated)
+- **MIDI Clock:** 24 PPQN (standard) on USB and DIN outputs
+- **Analog Sync Rates:** 1, 2, 4, 6, 24 PPQN (switch-selectable)
+- **BPM Range:** 20-400 BPM supported
 - **Clock Accuracy:** Microsecond-precision interrupt handling
 - **Latency:** <1ms typical (non-blocking architecture)
+- **Pulse Widths:** 5ms (SYNC_OUT, DISPLAY_CLK), 50ms (LED)
 
 ### Clock Source Priority
-1. **Sync Input** - Highest priority (modular/analog gear)
+1. **SYNC_IN** - Highest priority (analog/modular gear)
 2. **USB MIDI** - Computer/DAW (with 3-second timeout)
 3. **DIN MIDI** - Hardware MIDI IN port (lowest priority)
 
-When multiple sources are active, the device automatically switches to the highest priority source.
+When multiple sources are active, the device automatically switches to the highest priority source with graceful fallback.
 
 ### Memory Usage
-- **Flash:** ~16.0 KB / 28 KB (55.9%)
-- **RAM:** ~1.5 KB / 2.5 KB (57.6%)
-- **Build Optimizations:** LTO, function/data sections, relaxed linking
+- **Flash:** 11,674 bytes / 28,672 bytes (40.7%)
+- **RAM:** 1,293 bytes / 2,560 bytes (50.5%)
+- **Available for expansion:** 59.3% Flash remaining
 
 ---
 
@@ -116,60 +128,62 @@ When multiple sources are active, the device automatically switches to the highe
 ### Basic Operation
 
 **Power On:**
-- Display shows "IdLE" when no clock is detected
-- Device automatically detects connected cables
+- Device initializes with LED pulse indicator
+- Reads rotary switch position for sync rate configuration
+- All MIDI routing active immediately
 
 **Clock Playback:**
 1. Connect a clock source (USB MIDI from DAW, DIN MIDI, or analog sync)
-2. Start playback from your source device
-3. Display shows rotating animation synchronized to clock
-4. Decimal points indicate beat positions (1.2.3.4.)
+2. Set rotary switch to match SYNC_IN/OUT device PPQN rate
+3. Start playback from your source device
+4. LED pulses on every quarter note
 5. All connected outputs receive synchronized clock
 
-**View BPM:**
-- Press and hold the button
-- Display shows "t.###" (e.g., "t.120" for 120 BPM)
-- Release button to return to normal display
-- If no clock detected, shows "IdLE" while held
+**Rotary Switch Settings:**
+- Set to match your connected analog device's PPQN rate
+- Same switch position works for both SYNC_IN and SYNC_OUT
+- MIDI outputs always send standard 24 PPQN regardless of switch
 
 **Clock Stopping:**
 - Stop playback on source device
-- Display clears and returns to "IdLE"
 - All outputs stop sending clock
+- LED stops pulsing
 
 ### Connection Scenarios
 
-**Scenario 1: DAW → MIDI BytePulse → Hardware Synth**
+**Scenario 1: DAW → MIDI BytePulse → Hardware Synths**
 ```
-Computer (USB MIDI) → BytePulse → DIN MIDI OUT → Synth
+Computer (USB MIDI) → BytePulse → DIN MIDI OUT → Synths
+                             └──→ SYNC_OUT (switch: pos 2) → Volca
 ```
-- Synth receives standard 24 PPQN MIDI clock
-- BPM adjustments in DAW reflected immediately
-- All MIDI notes/CC messages pass through
+- All devices receive synchronized clock at 120 BPM
+- Volca on SYNC_OUT needs switch position 2 (2 PPQN)
+- MIDI devices receive standard 24 PPQN
 
-**Scenario 2: Beatstep Pro → MIDI BytePulse → DAW**
+**Scenario 2: Korg Volca → MIDI BytePulse → DAW**
 ```
-Beatstep Pro (clock out) → Sync IN → BytePulse → USB MIDI → DAW
+Volca (2 PPQN sync) → SYNC_IN → BytePulse → USB MIDI → DAW
+                              └──→ DIN MIDI OUT → Hardware
 ```
-- Beatstep tempo controls DAW
-- DAW locks to external hardware tempo
-- Analog clock converted to standard MIDI clock (24 PPQN)
+- Set switch to position 2 (2 PPQN for Volca)
+- Volca tempo controls everything
+- DAW and hardware sync to Volca's clock
 
-**Scenario 3: Modular → MIDI BytePulse → Multiple Destinations**
+**Scenario 3: BeatStep Pro → MIDI BytePulse → Multiple Destinations**
 ```
-Eurorack Clock → Sync IN → BytePulse → USB MIDI + DIN MIDI + Sync OUT
+BeatStep Pro (1 PPQN) → SYNC_IN → BytePulse → USB + DIN + SYNC_OUT
 ```
-- Single modular clock source drives everything
-- MIDI devices receive standard clock
-- Additional modular gear gets buffered sync signal
+- Set switch to position 1 (1 PPQN for BeatStep)
+- Single clock source drives all outputs
+- SYNC_OUT can drive additional modular gear
 
-**Scenario 4: DAW → MIDI BytePulse → Modular**
+**Scenario 4: Modular → BytePulse → TinyPulse Display**
 ```
-DAW (USB MIDI) → BytePulse → Sync OUT → Eurorack
+Eurorack Clock → SYNC_IN → BytePulse → DISPLAY_CLK → TinyPulse
 ```
-- Software tempo controls modular setup
-- 24 PPQN MIDI clock converted to trigger pulses
-- Modular oscillators/sequencers sync to DAW
+- TinyPulse always shows correct BPM (uses dedicated 1 PPQN clock)
+- Switch setting doesn't affect display accuracy
+- SYNC_OUT can simultaneously drive other modular gear
 
 ### MIDI Implementation
 
@@ -191,24 +205,42 @@ DAW (USB MIDI) → BytePulse → Sync OUT → Eurorack
 ## 🧪 Testing
 
 ### Unit Tests
-Automated tests verify core logic without hardware:
+Comprehensive automated test suite validates core functionality:
 
 ```bash
-# Run all unit tests
+# Run all unit tests (21 tests)
 pio test -e native
 
 # Run specific test suite
-pio test -e native -f test_bpm_calculation
 pio test -e native -f test_clock_priority
-pio test -e native -f test_display_format
+pio test -e native -f test_sync_rate
 ```
 
 **Test Coverage:**
-- **BPM Calculation** - 12 tests (30-300 BPM range, edge cases, rounding)
-- **Clock Priority** - 7 tests (Sync In > USB > DIN, fallback behavior)
-- **Display Format** - 11 tests (7-segment encoding, BPM formatting)
+- **Clock Priority** (7 tests) - SYNC_IN > USB > DIN hierarchy, fallback behavior
+- **Sync Rate Conversion** (14 tests) - PPQN multiplication/division, real-world device scenarios
 
-**Total: 30 unit tests** - See [test/TESTING_GUIDE.md](test/TESTING_GUIDE.md) for complete testing documentation.
+**Total: 21 unit tests, 100% pass rate** - See [test/TESTING_GUIDE.md](test/TESTING_GUIDE.md) for detailed testing documentation.
+
+### Test Results
+```
+test_clock_priority: 7/7 PASSED
+  ✓ Priority: SYNC_IN blocks USB
+  ✓ Priority: SYNC_IN blocks DIN
+  ✓ Priority: USB blocks DIN
+  ✓ Fallback: SYNC_IN to USB
+  ✓ Fallback: USB to DIN
+  ✓ Priority chain (full hierarchy)
+  ✓ Initial state accepts any source
+
+test_sync_rate: 14/14 PASSED
+  ✓ SYNC_IN multipliers (1, 2, 4, 6, 24 PPQN)
+  ✓ SYNC_OUT divisors (1, 2, 4, 24 PPQN)
+  ✓ Volca @ 120 BPM scenario
+  ✓ BeatStep Pro @ 120 BPM scenario
+  ✓ DAW to Volca SYNC_OUT
+  ✓ Bidirectional consistency
+```
 
 ---
 
@@ -224,7 +256,6 @@ All dependencies auto-installed via PlatformIO:
 ```ini
 - MIDI Library v5.0.2 (fortyseveneffects)
 - MIDIUSB v1.0.5 (Arduino)
-- AceSegment v0.13.0 (Brian Park)
 ```
 
 ### Build & Upload
@@ -252,9 +283,9 @@ Enable serial debugging in `config.h`:
 #define SERIAL_DEBUG    true
 #define DEBUG_BAUD_RATE 115200
 ```
-- Prints BPM changes to Serial Monitor
-- Threshold: >2 BPM change for logging
-- Auto-timeout: Waits 3 seconds for serial connection
+- Monitor clock source switching and sync rate selection
+- Outputs timing information for debugging
+- USB timeout warnings
 
 ---
 
@@ -265,24 +296,16 @@ Enable serial debugging in `config.h`:
 **`config.h` - Hardware Pins:**
 ```cpp
 #define SYNC_IN_PIN         7    // Analog sync input
-#define SYNC_OUT_PIN        5    // Analog sync output
-#define BUTTON_PIN         16    // BPM display button
-#define DISPLAY_CLK_PIN     8    // TM1637 clock
-#define DISPLAY_DIO_PIN     9    // TM1637 data
+#define SYNC_OUT_PIN        5    // Variable PPQN analog sync output
+#define DISPLAY_CLK_PIN     4    // Fixed 1 PPQN for TinyPulse
+#define LED_PULSE_PIN       8    // Beat indicator LED
+// Rotary switch pins: 9, 10, 16, 14, 15, A0
 ```
 
 **`Sync.cpp` - Timing Constants:**
 ```cpp
-static const unsigned long USB_TIMEOUT = 3000;           // USB inactivity timeout (ms)
-static const unsigned long CLOCK_TIMEOUT = 2000;         // Clock source timeout (ms)
-static const unsigned long MIN_CLOCK_INTERVAL = 8333;    // ~30 BPM limit (μs)
-static const unsigned long MAX_CLOCK_INTERVAL = 50000;   // ~300 BPM limit (μs)
-```
-
-**`Display.cpp` - Display Behavior:**
-```cpp
-static const unsigned long MIDI_MESSAGE_DURATION = 300;  // Message display time (ms)
-static const unsigned long IDLE_ANIM_INTERVAL = 300;     // Idle animation speed (ms)
+#define CLOCK_PULSE_WIDTH_US 5000      // SYNC_OUT/DISPLAY_CLK pulse width (5ms)
+#define LED_PULSE_WIDTH_MS 50          // LED pulse width (50ms)
 ```
 
 ---
@@ -292,26 +315,21 @@ static const unsigned long IDLE_ANIM_INTERVAL = 300;     // Idle animation speed
 ### Main Components
 
 **`main.cpp`** - Application entry point
-- Setup: Initializes all subsystems
-- Loop: Polls button, processes USB MIDI, updates sync and display
-- Interrupt: Handles sync input pulses (ISR)
+- Setup: Initializes MIDI, Sync engine
+- Loop: Processes USB/DIN MIDI, updates sync engine
+- Interrupt: Handles SYNC_IN pulses (ISR)
 
 **`Sync.cpp/h`** - Clock synchronization engine
-- Multi-source clock management with priority
-- BPM calculation (240,000 / interval for 4-beat measure)
+- Multi-source clock management with priority hierarchy
+- SYNC_IN PPQN multiplication (1-48 → 24 PPQN MIDI)
+- SYNC_OUT PPQN division (24 PPQN MIDI → 1-48)
+- Rotary switch reading with debouncing
 - Clock distribution to all outputs
-- Cable detection logic
-
-**`Display.cpp/h`** - TM1637 display controller
-- Non-blocking display updates (AceSegment library)
-- Clock-synced animations (16-step rotation)
-- Beat position indicators (decimal points)
-- BPM display mode
 
 **`MIDIHandler.cpp/h`** - MIDI I/O management
-- USB ↔ DIN MIDI passthrough
-- Message parsing and forwarding
-- Optimized buffer flushing
+- USB ↔ DIN MIDI bidirectional forwarding
+- Clock message forwarding with priority rules
+- Message parsing and routing
 
 **`config.h`** - Hardware configuration
 - Pin definitions
@@ -321,91 +339,102 @@ static const unsigned long IDLE_ANIM_INTERVAL = 300;     // Idle animation speed
 ### Data Flow
 
 ```
-┌─────────────┐
-│  MIDI IN    │ ──┐
-│ (USB/DIN)   │   │
-└─────────────┘   │
-                  ├──→ MIDIHandler ──→ Sync Engine ──┬──→ USB MIDI OUT
-┌─────────────┐   │                                   │
-│  SYNC IN    │ ──┘                                   ├──→ DIN MIDI OUT
-│ (Interrupt) │                                       │
-└─────────────┘                                       └──→ SYNC OUT
-       │
-       └──────────────────→ Display
+┌──────────────┐
+│  USB MIDI    │ ──┐
+│  DIN MIDI    │ ──┼──→ MIDIHandler ──→ Sync Engine ──┬──→ USB MIDI OUT (24 PPQN)
+│  SYNC_IN     │ ──┘                                   ├──→ DIN MIDI OUT (24 PPQN)
+│ (Interrupt)  │                                       ├──→ SYNC_OUT (1-24 PPQN)
+└──────────────┘                                       ├──→ DISPLAY_CLK (1 PPQN)
+                                                       └──→ LED_PULSE (1 PPQN)
 ```
 
 ---
 
 ## 🔍 Troubleshooting
 
-### Display shows "IdLE" constantly
-- **No clock detected** - Check MIDI cables and ensure source device is playing
-- **Wrong cable type** - Use standard MIDI cables (not null-modem)
-- **USB not recognized** - Try different USB port or cable
+### Rotary switch not working
+- **Check wiring** - Common to GND, positions to correct pins
+- **Verify switch type** - Must be 1P5T (1-pole, 5-throw)
+- **Add diodes** - Positions 4 and 6 may need 1N4148 diodes for dual connections
+- **Serial debug** - Enable debug mode to see switch reading
 
-### BPM display shows wrong tempo
-- **Source switching** - Device may be receiving clock from unexpected source
-- **Sync input PPQN** - Analog sources may use non-standard resolutions (see below)
-- **Clock dropouts** - Check cable connections and signal integrity
+### Wrong BPM with SYNC_IN
+- **Check switch position** - Must match device's PPQN rate (Volca=2, BeatStep=1, etc.)
+- **Verify source PPQN** - Some devices use non-standard rates
+- **MIDI outputs correct** - USB/DIN always send correct 24 PPQN regardless of switch
 
-### Analog sync not working
-- **Voltage levels** - Ensure sync source outputs 5V triggers (or use level shifter)
-- **Cable detection** - Use switched jacks or modify detection circuit
-- **Interrupt conflicts** - Pin 7 must be interrupt-capable (don't change)
+### SYNC_OUT tempo incorrect
+- **Verify switch position** - Receiving device must match switch PPQN setting
+- **Check pulse width** - 5ms pulse compatible with most devices
+- **Voltage levels** - Ensure 5V compatible or use level shifter
 
 ### MIDI messages not passing through
-- **Baud rate** - Hardware MIDI must be 31250 baud (set in MIDI Library)
+- **Baud rate** - Hardware MIDI must be 31250 baud (auto-configured)
 - **Optocoupler** - Check 6N138 wiring and power supply
 - **USB driver** - Update USB MIDI drivers on computer
-
-### High memory usage / crashes
-- **Buffer overflow** - Reduce SERIAL_RX/TX_BUFFER_SIZE in platformio.ini
-- **Display updates** - Ensure `display.flush()` called regularly
-- **Interrupt safety** - Don't add Serial.print() in ISR functions
+- **Priority blocking** - Lower priority sources blocked when higher priority active
 
 ---
 
-## 📐 PPQN & Analog Sync
+## 📐 Sync Rate Conversion
 
 ### Understanding PPQN
 
 **PPQN** = Pulses Per Quarter Note (clock resolution)
 
-- **MIDI Standard:** 24 PPQN (fixed)
-- **Analog Devices:** Varies widely (1, 2, 4, 8, 24, 48 PPQN)
+- **MIDI Standard:** Always 24 PPQN (USB and DIN outputs)
+- **Analog Devices:** Varies (1, 2, 4, 6, 24 PPQN)
 
-This device **always outputs 24 PPQN** on MIDI outputs (standard).
+The **rotary switch** configures both SYNC_IN and SYNC_OUT to match your device's native rate.
 
-### Analog Sync Input
+### How It Works
 
-When receiving analog sync (e.g., from Beatstep Pro, Volca, modular), the device **assumes 24 PPQN** and calculates BPM accordingly:
+**SYNC_IN → MIDI (Multiplication):**
+- Device receives analog pulses at configured PPQN
+- Multiplies to 24 PPQN for MIDI outputs
+- Example: 2 PPQN input × 12 = 24 PPQN MIDI output
 
-**Example:**
-- Beatstep Pro outputs **1 PPQN** (1 pulse per quarter note)
-- Device receives 120 pulses/minute
-- BPM calculation: `(120 pulses/min × 24) / 24 = 120 BPM` ✓
+**MIDI → SYNC_OUT (Division):**
+- Device receives 24 PPQN MIDI clock internally
+- Divides to configured PPQN for SYNC_OUT
+- Example: 24 PPQN ÷ 12 = 2 PPQN output (for Volca)
 
-**Common Analog Sync Resolutions:**
-- **Korg Volca Series:** 2 PPQN (1 pulse per 8th note)
-- **DIN Sync (vintage):** 24 PPQN (Roland TR-series)
-- **Eurorack Clocks:** Often 4, 8, or 24 PPQN
-- **Arturia Beatstep Pro:** 1 PPQN (1 pulse per quarter note)
+### Common Device PPQN Rates
 
-> **Note:** If BPM display seems incorrect, your analog source may be using non-standard PPQN. The clock will still sync correctly, but BPM reading will be scaled.
+| Device | PPQN | Switch Position |
+|--------|------|-----------------|
+| Korg Volca series | 2 | Position 2 |
+| Arturia BeatStep Pro | 1 | Position 1 |
+| Roland TR-series (DIN Sync) | 4 | Position 3 |
+| Eurorack (typical) | 24 | Position 5 |
+| Modular (varies) | 1, 4, or 24 | Pos 1, 3, or 5 |
+
+### Switch Setting Examples
+
+**Scenario: Volca as master (2 PPQN) → Switch Position 2**
+- SYNC_IN receives 2 pulses per beat
+- Multiplies ×12 → 24 PPQN MIDI Clock
+- All MIDI devices show correct 120 BPM
+
+**Scenario: DAW → Volca via SYNC_OUT → Switch Position 2**
+- MIDI Clock runs at 24 PPQN internally
+- SYNC_OUT divides ÷12 → 2 PPQN output
+- Volca receives correct 2 PPQN at 120 BPM
 
 ---
 
 ## 🚀 Future Enhancements
 
 Potential features for future versions:
+- [ ] Rotary encoder for tempo adjustment (pins 2, 3 reserved)
+- [ ] Potentiometers for swing/groove (A1-A3 reserved)
 - [ ] EEPROM settings persistence
-- [ ] Swing/groove quantization
-- [ ] Tap tempo button
-- [ ] PPQN configuration menu
 - [ ] MIDI message filtering
-- [ ] Multiple sync output modes
-- [ ] Adjustable LED brightness
-- [ ] Clock divider/multiplier
+- [ ] Tap tempo function
+- [ ] Clock divider/multiplier modes
+- [ ] Additional PPQN rates
+
+**Current Flash Available:** 59.3% (17,000 bytes free)
 
 ---
 
@@ -420,9 +449,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **Libraries:**
 - [MIDI Library](https://github.com/FortySevenEffects/arduino_midi_library) by FortySevenEffects
 - [MIDIUSB](https://github.com/arduino-libraries/MIDIUSB) by Arduino
-- [AceSegment](https://github.com/bxparks/AceSegment) by Brian Park
 
 **Hardware:**
 - SparkFun Pro Micro board design
+
+**Related Projects:**
+- [rMODS TinyPulse Display](../rMODS%20TinyPulse%20Display) - Companion BPM display module
 
 ---
