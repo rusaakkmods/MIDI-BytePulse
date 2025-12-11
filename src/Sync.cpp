@@ -264,7 +264,6 @@ void Sync::update() {
     clockState = false;
   }
   
-  unsigned long currentMillis = millis();
   if (displayClkState && (currentMillis - displayClkPulseTime >= 5)) {
     digitalWrite(DISPLAY_CLK_PIN, LOW);
     displayClkState = false;
