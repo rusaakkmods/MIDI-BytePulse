@@ -2,6 +2,8 @@
 
 This directory contains automated unit tests for the BytePulse MIDI clock sync device.
 
+**Note:** Display-related tests have been migrated to the TinyPulse Display project after architecture refactoring.
+
 ## Running Tests
 
 ### Run all tests:
@@ -13,20 +15,19 @@ pio test -e native
 ```bash
 pio test -e native -f test_bpm_calculation
 pio test -e native -f test_clock_priority  
-pio test -e native -f test_display_format
 ```
 
 ### Expected Results:
 - **test_bpm_calculation**: 12 tests, 0 failures
 - **test_clock_priority**: 7 tests, 0 failures
-- **test_display_format**: 11 tests, 0 failures
-
-**Total: 30 unit tests**
+- **test_display_format**: ⚠️ Deprecated (1 test - migration notice)
 
 ## Test Suites
 
-### 1. test_bpm_calculation
+### 1. test_bpm_calculation ✅ Active
 Tests BPM calculation algorithm (240,000 / interval).
+
+**Status:** BytePulse still uses BPM calculation internally for debugging/logging.
 
 **Coverage:**
 - Standard tempos (60, 90, 120, 128, 140, 180, 240 BPM)
@@ -34,7 +35,7 @@ Tests BPM calculation algorithm (240,000 / interval).
 - Zero interval handling
 - Rounding behavior
 
-### 2. test_clock_priority
+### 2. test_clock_priority ✅ Active
 Tests clock source priority logic (Sync In > USB > DIN).
 
 **Coverage:**
@@ -43,11 +44,11 @@ Tests clock source priority logic (Sync In > USB > DIN).
 - Initial state handling
 - Complete priority chain
 
-### 3. test_display_format
-Tests 7-segment display formatting and character conversion.
+### 3. test_display_format ⚠️ Deprecated
+**Migrated to:** `rMODS TinyPulse Display/test/test_display_format/`
 
-**Coverage:**
-- Digit conversion (0-9)
+Display functionality moved to external TinyPulse Display module.
+Test file kept for reference with deprecation notice.
 - Letter conversion (I, d, L, e, t, etc.)
 - Special characters (-, _)
 - BPM formatting (5-999 BPM range)

@@ -4,14 +4,12 @@
 
 #include "MIDIHandler.h"
 #include "Sync.h"
-#include "Display.h"
 #include <MIDI.h>
 #include <MIDIUSB.h>
 
 MIDI_CREATE_INSTANCE(HardwareSerial, Serial1, MIDI_DIN);
 
 Sync* MIDIHandler::sync = nullptr;
-Display* MIDIHandler::display = nullptr;
 
 void MIDIHandler::sendMessage(const midiEventPacket_t& event) {
   MidiUSB.sendMIDI(event);
@@ -47,10 +45,6 @@ void MIDIHandler::update() {
 
 void MIDIHandler::setSync(Sync* s) {
   sync = s;
-}
-
-void MIDIHandler::setDisplay(Display* d) {
-  display = d;
 }
 
 void MIDIHandler::forwardDINtoUSB(byte channel, byte type, byte data1, byte data2) {
@@ -97,9 +91,6 @@ void MIDIHandler::forwardUSBtoDIN(const midiEventPacket_t& event) {
 
 void MIDIHandler::handleNoteOn(byte channel, byte note, byte velocity) {
   forwardDINtoUSB(channel, 0x90, note, velocity);
-  if (display && sync && !sync->isClockRunning()) {
-    display->showMIDIMessage("n.", note, channel - 1);  // channel is 1-16, convert to 0-15
-  }
 }
 
 void MIDIHandler::handleNoteOff(byte channel, byte note, byte velocity) {
@@ -152,8 +143,12 @@ void MIDIHandler::handleSystemExclusive(byte* data, unsigned size) {
 }
 
 void MIDIHandler::handleClock() {
+  // Forward to USB MIDI
   midiEventPacket_t event = {0x0F, 0xF8, 0, 0};
   MidiUSB.sendMIDI(event);
+  
+  // Forward to DIN MIDI OUT
+  MIDI_DIN.sendRealTime(midi::Clock);
   
   static uint8_t clockCounter = 0;
   if (++clockCounter >= 6) {
@@ -166,12 +161,12 @@ void MIDIHandler::handleClock() {
 }
 
 void MIDIHandler::handleStart() {
+  // Forward to USB MIDI
   midiEventPacket_t event = {0x0F, 0xFA, 0, 0};
   MidiUSB.sendMIDI(event);
   
-  if (display) {
-    display->showPlay();
-  }
+  // Forward to DIN MIDI OUT
+  MIDI_DIN.sendRealTime(midi::Start);
   
   if (sync) {
     sync->handleStart(CLOCK_SOURCE_DIN);
@@ -179,12 +174,12 @@ void MIDIHandler::handleStart() {
 }
 
 void MIDIHandler::handleContinue() {
+  // Forward to USB MIDI
   midiEventPacket_t event = {0x0F, 0xFB, 0, 0};
   MidiUSB.sendMIDI(event);
   
-  if (display) {
-    display->showPlay();
-  }
+  // Forward to DIN MIDI OUT
+  MIDI_DIN.sendRealTime(midi::Continue);
   
   if (sync) {
     sync->handleStart(CLOCK_SOURCE_DIN);
@@ -192,12 +187,12 @@ void MIDIHandler::handleContinue() {
 }
 
 void MIDIHandler::handleStop() {
+  // Forward to USB MIDI
   midiEventPacket_t event = {0x0F, 0xFC, 0, 0};
   MidiUSB.sendMIDI(event);
   
-  if (display) {
-    display->showStop();
-  }
+  // Forward to DIN MIDI OUT
+  MIDI_DIN.sendRealTime(midi::Stop);
   
   if (sync) {
     sync->handleStop(CLOCK_SOURCE_DIN);

@@ -3,13 +3,20 @@
 
 #include <Arduino.h>
 
-class Display;
-
 enum ClockSource {
   CLOCK_SOURCE_NONE,
   CLOCK_SOURCE_SYNC_IN,
   CLOCK_SOURCE_DIN,
   CLOCK_SOURCE_USB
+};
+
+enum SyncInRate {
+  SYNC_IN_1_PPQN = 1,    // Modular/Analog sequencers
+  SYNC_IN_2_PPQN = 2,    // Korg Volca sync
+  SYNC_IN_4_PPQN = 4,    // Roland DIN sync
+  SYNC_IN_6_PPQN = 6,    // 6 PPQN (24/6 = 4 clocks per pulse)
+  SYNC_IN_24_PPQN = 24,  // MIDI Clock (passthrough)
+  SYNC_IN_48_PPQN = 48   // High-res MIDI
 };
 
 class Sync {
@@ -22,44 +29,38 @@ public:
   void update();
   bool isBeatActive() const { return ledState; }
   bool isClockRunning() const { return isPlaying; }
-  uint16_t getCurrentBPM() const { return currentBPM; }
   
-  void (*onBPMUpdate)(uint16_t bpm) = nullptr;
+  SyncInRate readSyncInRate();     // Read rotary switch position
+  uint8_t getSyncInMultiplier();   // Get PPQN multiplier for SYNC_IN → MIDI
+  uint8_t getSyncOutDivisor();     // Get PPQN divisor for MIDI → SYNC_OUT
+  
   void (*onClockStop)() = nullptr;
   void (*onClockStart)() = nullptr;
-  
-  void setDisplay(Display* disp) { display = disp; }
 
 private:
   void checkUSBTimeout();
-  bool isSyncOutConnected();
   bool isSyncInConnected();
   void sendMIDIClock();
   
   unsigned long lastPulseTime = 0;
   unsigned long lastUSBClockTime = 0;
-  unsigned long prevUSBClockTime = 0;
-  unsigned long avgUSBClockInterval = 0;
   unsigned long lastDINClockTime = 0;
-  unsigned long prevDINClockTime = 0;
-  unsigned long avgDINClockInterval = 0;
   unsigned long lastSyncInTime = 0;
-  unsigned long prevSyncInTime = 0;
-  unsigned long avgSyncInInterval = 0;
   volatile unsigned long syncInPulseTime = 0;
+  unsigned long syncOutPulseTime = 0;
+  unsigned long displayClkPulseTime = 0;
   bool clockState = false;
+  bool displayClkState = false;
   bool ledState = false;
   byte ppqnCounter = 0;
   bool isPlaying = false;
   bool usbIsPlaying = false;
   bool syncInIsPlaying = false;
   ClockSource activeSource = CLOCK_SOURCE_NONE;
-  byte beatPosition = 0;
-  unsigned long lastBeatTime = 0;
-  uint16_t currentBPM = 0;
-  uint16_t lastDisplayedBPM = 0;
   
-  Display* display = nullptr;
+  SyncInRate syncRate = SYNC_IN_2_PPQN;  // Switch setting (controls both IN and OUT)
+  uint8_t syncInPulseCounter = 0;        // Counter for SYNC_IN PPQN multiplication
+  uint8_t syncOutPulseCounter = 0;       // Counter for SYNC_OUT PPQN division
 };
 
 #endif

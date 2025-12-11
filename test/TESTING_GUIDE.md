@@ -27,25 +27,12 @@ pio test -e native
 
 **Run specific test:**
 ```bash
-pio test -e native -f test_bpm_calculation
 pio test -e native -f test_clock_priority
-pio test -e native -f test_display_format
 ```
 
 ### 2.2. Available Unit Tests
 
-#### Test Suite 1: BPM Calculation (`test_bpm_calculation`)
-Tests the BPM calculation algorithm (240,000 / interval).
-
-**What it tests:**
-- Standard tempos: 60, 90, 120, 128, 140, 180, 240 BPM
-- Edge cases: 30 BPM (minimum), 300 BPM (maximum)
-- Zero interval handling
-- Rounding behavior
-
-**Expected result:** All 12 tests pass
-
-#### Test Suite 2: Clock Source Priority (`test_clock_priority`)
+#### Test Suite 1: Clock Source Priority (`test_clock_priority`)
 Tests the priority logic: Sync In > USB > DIN.
 
 **What it tests:**
@@ -70,23 +57,7 @@ Tests 7-segment character conversion and BPM formatting.
 **Expected result:** All 11 tests pass
 
 ### 2.3. Interpreting Unit Test Results
-
-**Success output:**
-```
-test/test_bpm_calculation/test_bpm_calc.cpp:12:test_bpm_calculation_120bpm:PASS
-...
-----------------------
-12 Tests 0 Failures 0 Ignored
-OK
-```
-
-**Failure output:**
-```
-test/test_bpm_calculation/test_bpm_calc.cpp:12:test_bpm_calculation_120bpm:FAIL:
-Expected 120 Was 119
-```
-
-If any test fails, it indicates a regression or bug in core logic that needs fixing before hardware testing.
+**Expected result:** All 7 tests pass
 
 ---
 
@@ -96,11 +67,10 @@ If any test fails, it indicates a regression or bug in core logic that needs fix
 |---------|-------------|
 | **Bidirectional MIDI Routing** | Forwards all MIDI messages between USB and DIN (IN/OUT) in both directions. |
 | **MIDI Clock Forwarding** | USB and DIN MIDI clock, start, stop, and continue messages are forwarded in real time. |
-| **Flexible Beat LED Pulse** | Beat LED flashes on every quarter note, with pulse width proportional to tempo for clear visibility at any BPM. |
-| **7-Segment BPM Display** | Shows current BPM, updates in real time, and remains stable even at high tempos. |
+| **Beat LED Indicator** | Beat LED flashes on every quarter note for visual sync confirmation. |
 | **MIDI Thru Output** | DIN MIDI IN is optically isolated and can be routed to MIDI OUT for true THRU functionality. |
 | **Sync In/Out** | Accepts and generates 24 PPQN clock pulses for external sync. |
-| **Button Control** | Push button for display and mode functions. |
+| **Display Extension Port** | 6-pin DISPLAY_EXT header provides CLK_EXT (1 PPQN) and MIDI_EXT (31250 baud) for TinyPulse Display module. |
 | **Robust Error Handling** | Serial buffer and UART error checks for reliable MIDI input. |
 | **Open Source Hardware** | Designed for SparkFun Pro Micro (ATmega32U4) and compatible clones. |
 
