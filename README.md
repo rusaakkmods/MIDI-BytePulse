@@ -21,16 +21,15 @@
 - **USB MIDI Clock Output** - Standard 24 PPQN to DAW/software
 - **DIN MIDI Clock Output** - Standard 24 PPQN to hardware devices
 - **Analog Sync Output** - Variable PPQN (1-48) via rotary switch
-- **Display Clock Output** - Dedicated 1 PPQN output for TinyPulse Display module
+- **Display Clock Output** - Dedicated 1 PPQN clock-only output for TinyPulse Display module
 
 ### Universal Sync Rate Converter
-**6-Position Rotary Switch** - Controls both SYNC_IN and SYNC_OUT rates:
+**1P5T Rotary Switch (5 positions)** - Controls both SYNC_IN and SYNC_OUT rates:
 - **Position 1:** 1 PPQN (Modular, Arturia BeatStep Pro)
 - **Position 2:** 2 PPQN (Korg Volca series)
 - **Position 3:** 4 PPQN (Roland DIN Sync)
 - **Position 4:** 6 PPQN (Custom devices)
 - **Position 5:** 24 PPQN (MIDI passthrough)
-- **Position 6:** 48 PPQN (High-resolution sync)
 
 ### MIDI Message Handling
 - **Bidirectional MIDI Routing:**
@@ -55,7 +54,7 @@
 |-----|----------|-------------|
 | 0 | MIDI IN | Hardware Serial RX (5-pin DIN) |
 | 1 | MIDI OUT | Hardware Serial TX (5-pin DIN) |
-| 4 | DISPLAY CLK | Fixed 1 PPQN for TinyPulse Display |
+| 4 | DISPLAY CLK | Fixed 1 PPQN clock-only for TinyPulse Display |
 | 5 | SYNC OUT | Variable PPQN analog clock output |
 | 6 | SYNC IN DETECT | Cable detection for sync input |
 | 7 | SYNC IN | Analog clock input (interrupt-capable) |
@@ -65,9 +64,8 @@
 | 14 | SYNC RATE 4 | Rotary switch position 4 (6 PPQN) |
 | 15 | SYNC RATE 5 | Rotary switch position 5 (24 PPQN) |
 | 16 | SYNC RATE 3 | Rotary switch position 3 (4 PPQN) |
-| A0 | SYNC RATE 6 | Rotary switch position 6 (48 PPQN) |
 | 2, 3 | Reserved | I2C + interrupts (future: encoder) |
-| A1-A3 | Reserved | Analog inputs (future: potentiometers) |
+| A0-A3 | Reserved | Analog inputs (future: potentiometers) |
 
 ### Connections
 
@@ -79,19 +77,18 @@
 **Analog Sync (3.5mm mono jacks):**
 - SYNC_IN: Pin 7 (interrupt-capable), 5V trigger signal
 - SYNC_OUT: Pin 5, variable PPQN (1-48) based on switch, 5ms pulse width
-- DISPLAY_CLK: Pin 4, fixed 1 PPQN for TinyPulse Display, 5ms pulse width
+- DISPLAY_CLK: Pin 4, fixed 1 PPQN clock-only for TinyPulse Display, 5ms pulse width
 - Cable detection via switched jack to pin 6
 
-**Rotary Switch (1P6T):**
+**Rotary Switch (1P5T):**
 - Common terminal to GND
-- Position terminals to pins 9, 10, 16, 14, 15, A0
+- Position terminals to pins 9, 10, 16, 14, 15
 - Internal pullups enabled (no external resistors needed)
-- For positions with dual pin connections, use 1N4148 diodes
 
 **TinyPulse Display Module (separate project):**
-- Clock: Pin 4 (DISPLAY_CLK) - always 1 PPQN
-- MIDI tap: Passive connection to MIDI IN optocoupler output
+- Clock: Pin 4 (DISPLAY_CLK) - always 1 PPQN, clock pulses only (no MIDI)
 - Provides real-time BPM display with 4-digit TM1637
+- Self-contained BPM calculation from clock pulses
 
 **LED Indicator:**
 - Pin 8: Beat pulse LED (1 PPQN, 50ms pulse)
@@ -181,7 +178,8 @@ BeatStep Pro (1 PPQN) → SYNC_IN → BytePulse → USB + DIN + SYNC_OUT
 ```
 Eurorack Clock → SYNC_IN → BytePulse → DISPLAY_CLK → TinyPulse
 ```
-- TinyPulse always shows correct BPM (uses dedicated 1 PPQN clock)
+- TinyPulse receives only clock pulses (1 PPQN), no MIDI data
+- Self-contained BPM calculation from clock timing
 - Switch setting doesn't affect display accuracy
 - SYNC_OUT can simultaneously drive other modular gear
 
@@ -297,7 +295,7 @@ Enable serial debugging in `config.h`:
 ```cpp
 #define SYNC_IN_PIN         7    // Analog sync input
 #define SYNC_OUT_PIN        5    // Variable PPQN analog sync output
-#define DISPLAY_CLK_PIN     4    // Fixed 1 PPQN for TinyPulse
+#define DISPLAY_CLK_PIN     4    // Fixed 1 PPQN clock-only for TinyPulse
 #define LED_PULSE_PIN       8    // Beat indicator LED
 // Rotary switch pins: 9, 10, 16, 14, 15, A0
 ```

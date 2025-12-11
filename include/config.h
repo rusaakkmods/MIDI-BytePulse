@@ -14,7 +14,7 @@
 
 // Clock Sync Output
 #define SYNC_OUT_PIN          5   // Variable PPQN (switch-controlled)
-#define DISPLAY_CLK_PIN       4  // Fixed 1 PPQN for TinyPulse Display
+#define DISPLAY_CLK_PIN       4   // Fixed 1 PPQN clock for TinyPulse Display (clock only, no MIDI)
 
 // Clock Sync Input (assumes 1 PPQN from external source)
 #define SYNC_IN_PIN           7
