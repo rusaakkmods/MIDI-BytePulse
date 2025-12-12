@@ -207,34 +207,35 @@ void Sync::update() {
     lastSyncInTime = pulseTime;  // Update for timeout detection
     
     uint8_t multiplier = getSyncInMultiplier();
-    
-    // Check if this pulse will complete a beat (wrap ppqnCounter to 0)
-    // Pulse DISPLAY_CLK with timestamp from actual Volca pulse arrival
-    uint8_t nextCount = ppqnCounter + multiplier;
-    if (nextCount >= PPQN) {
-      digitalWrite(DISPLAY_CLK_PIN, HIGH);
-      displayClkState = true;
-      displayClkPulseTime = pulseTime;  // Use actual pulse arrival time, not processing time
-    }
+    uint8_t divisor = getSyncOutDivisor();
     
     // Now send MIDI clocks and update counter
+    // Pulse DISPLAY_CLK once per quarter note (when ppqnCounter wraps to 0)
+    // Pulse SYNC_OUT based on divisor setting
     for (uint8_t i = 0; i < multiplier; i++) {
       sendMIDIClock();
+      
+      // Check if we should pulse SYNC_OUT based on divisor before incrementing
+      if (ppqnCounter % divisor == 0) {
+        digitalWrite(SYNC_OUT_PIN, HIGH);
+        clockState = true;
+        lastPulseTime = currentTime;
+        
+        if (!ledState) {
+          digitalWrite(LED_PULSE_PIN, HIGH);
+          ledState = true;
+          ledPulseTime = currentMillis;
+        }
+      }
       
       ppqnCounter++;
       if (ppqnCounter >= PPQN) {
         ppqnCounter = 0;
+        // Pulse DISPLAY_CLK once per beat using actual SYNC_IN pulse arrival time
+        digitalWrite(DISPLAY_CLK_PIN, HIGH);
+        displayClkState = true;
+        displayClkPulseTime = pulseTime;
       }
-    }
-    
-    if (syncInIsPlaying) {
-      digitalWrite(SYNC_OUT_PIN, HIGH);
-      clockState = true;
-      lastPulseTime = currentTime;
-      
-      digitalWrite(LED_PULSE_PIN, HIGH);
-      ledState = true;
-      ledPulseTime = currentMillis;
     }
   }
   

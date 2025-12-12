@@ -46,6 +46,11 @@ void setup() {
   while (!Serial && millis() < 3000);
   DEBUG_PRINTLN("MIDI BytePulse - Debug Mode");
   DEBUG_PRINTLN("BPM monitoring active (change threshold: >2 BPM)");
+  DEBUG_PRINTLN("Checking Serial1 (MIDI DIN)...");
+  DEBUG_PRINT("Serial1 TX Pin: ");
+  DEBUG_PRINTLN(1);
+  DEBUG_PRINT("Serial1 RX Pin: ");
+  DEBUG_PRINTLN(0);
   #endif
   
   sync.begin();

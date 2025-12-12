@@ -39,6 +39,9 @@
 #define LED_PULSE_WIDTH_MS 50
 #define PPQN 24
 
+// MIDI IN Forwarding
+#define FORWARD_MIDI_IN_TO_MIDI_OUT   true  // MIDI IN not forwarded to USB MIDI OUT (only mirrored to MIDI THRU PORT)
+
 // Debug
 #define SERIAL_DEBUG        false
 #define DEBUG_BAUD_RATE    115200

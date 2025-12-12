@@ -17,7 +17,14 @@ void MIDIHandler::flushBuffer() {
 
 void MIDIHandler::begin() {
   MIDI_DIN.begin(MIDI_CHANNEL_OMNI);
+  #if FORWARD_MIDI_IN_TO_MIDI_OUT == false
+  // MIDI IN not forwarded to USB MIDI OUT (only mirrored to MIDI THRU PORT)
   MIDI_DIN.turnThruOff();
+  #endif
+  #if SERIAL_DEBUG
+  DEBUG_PRINTLN("MIDI DIN initialized on Serial1");
+  DEBUG_PRINTLN("Listening on all channels (OMNI mode)");
+  #endif
   
   MIDI_DIN.setHandleNoteOn(handleNoteOn);
   MIDI_DIN.setHandleNoteOff(handleNoteOff);
@@ -36,6 +43,18 @@ void MIDIHandler::begin() {
 }
 
 void MIDIHandler::update() {
+  #if SERIAL_DEBUG
+  // Check for raw Serial1 data
+  if (Serial1.available()) {
+    static unsigned long lastRawDebug = 0;
+    if (millis() - lastRawDebug > 500) {
+      DEBUG_PRINT("Raw Serial1 bytes available: ");
+      DEBUG_PRINTLN(Serial1.available());
+      lastRawDebug = millis();
+    }
+  }
+  #endif
+  
   MIDI_DIN.read();
 }
 
@@ -86,6 +105,15 @@ void MIDIHandler::forwardUSBtoDIN(const midiEventPacket_t& event) {
 }
 
 void MIDIHandler::handleNoteOn(byte channel, byte note, byte velocity) {
+  #if SERIAL_DEBUG
+  DEBUG_PRINT("DIN MIDI: Note On - Ch:");
+  DEBUG_PRINT(channel);
+  DEBUG_PRINT(" Note:");
+  DEBUG_PRINT(note);
+  DEBUG_PRINT(" Vel:");
+  DEBUG_PRINTLN(velocity);
+  #endif
+  
   forwardDINtoUSB(channel, 0x90, note, velocity);
 }
 
