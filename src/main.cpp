@@ -3,9 +3,11 @@
 #include "config.h"
 #include "MIDIHandler.h"
 #include "Sync.h"
+#include "TestModes.h"
 
 MIDIHandler midiHandler;
 Sync sync;
+TestModes testModes;
 
 void syncInInterrupt() {
   sync.handleSyncInPulse();
@@ -50,10 +52,20 @@ void setup() {
   midiHandler.setSync(&sync);
   midiHandler.begin();
   
+  testModes.setup(&sync);
+  
   attachInterrupt(digitalPinToInterrupt(SYNC_IN_PIN), syncInInterrupt, RISING);
 }
 
 void loop() {
+#if TEST_MODE_CLOCK || TEST_MODE_SYNC_IN || TEST_MODE_MIDI_IN
+  testModes.loop(&sync);
+  
+  #if TEST_MODE_CLOCK
+  return;
+  #endif
+#endif
+  // Normal operation
   midiHandler.update();
   processUSBMIDI();
   sync.update();

@@ -100,7 +100,7 @@ void Sync::handleClock(ClockSource source) {
     if (!ledState) {
       digitalWrite(LED_PULSE_PIN, HIGH);
       ledState = true;
-      lastPulseTime = now;
+      ledPulseTime = now;
     }
   }
   
@@ -186,6 +186,7 @@ void Sync::handleStop(ClockSource source) {
 
 void Sync::update() {
   unsigned long currentTime = micros();
+  unsigned long currentMillis = millis();
   
   if (syncInPulseTime > 0) {
     unsigned long pulseTime = syncInPulseTime;
@@ -203,21 +204,37 @@ void Sync::update() {
       }
     }
     
+    lastSyncInTime = pulseTime;  // Update for timeout detection
+    
     uint8_t multiplier = getSyncInMultiplier();
+    
+    // Check if this pulse will complete a beat (wrap ppqnCounter to 0)
+    // Pulse DISPLAY_CLK with timestamp from actual Volca pulse arrival
+    uint8_t nextCount = ppqnCounter + multiplier;
+    if (nextCount >= PPQN) {
+      digitalWrite(DISPLAY_CLK_PIN, HIGH);
+      displayClkState = true;
+      displayClkPulseTime = pulseTime;  // Use actual pulse arrival time, not processing time
+    }
+    
+    // Now send MIDI clocks and update counter
     for (uint8_t i = 0; i < multiplier; i++) {
       sendMIDIClock();
+      
+      ppqnCounter++;
+      if (ppqnCounter >= PPQN) {
+        ppqnCounter = 0;
+      }
     }
     
     if (syncInIsPlaying) {
-      digitalWrite(DISPLAY_CLK_PIN, HIGH);
-      displayClkState = true;
-      
       digitalWrite(SYNC_OUT_PIN, HIGH);
       clockState = true;
       lastPulseTime = currentTime;
       
       digitalWrite(LED_PULSE_PIN, HIGH);
       ledState = true;
+      ledPulseTime = currentMillis;
     }
   }
   
@@ -250,7 +267,6 @@ void Sync::update() {
   
   checkUSBTimeout();
   
-  unsigned long currentMillis = millis();
   if (currentMillis - lastSwitchReadTime >= 100) {
     SyncInRate newRate = readSyncInRate();
     if (newRate != syncRate) {
@@ -269,7 +285,7 @@ void Sync::update() {
     displayClkState = false;
   }
   
-  if (ledState && (currentMillis - lastPulseTime >= LED_PULSE_WIDTH_MS)) {
+  if (ledState && (currentMillis - ledPulseTime >= LED_PULSE_WIDTH_MS)) {
     digitalWrite(LED_PULSE_PIN, LOW);
     ledState = false;
   }

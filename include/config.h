@@ -43,6 +43,11 @@
 #define SERIAL_DEBUG        false
 #define DEBUG_BAUD_RATE    115200
 
+// Test Modes (enable only one at a time)
+#define TEST_MODE_CLOCK     false  // Test 01: Pulse test mode - direct clock generation
+#define TEST_MODE_SYNC_IN   false   // Test 02: Sync in test mode - simulate Volca @ 120 BPM
+#define TEST_MODE_MIDI_IN   false  // Test 03: MIDI in test mode - simulate sequencer @ 120 BPM
+
 #if SERIAL_DEBUG
   #define DEBUG_PRINT(x)   Serial.print(x)
   #define DEBUG_PRINTLN(x) Serial.println(x)

@@ -42,6 +42,7 @@ private:
   void sendMIDIClock();
   
   unsigned long lastPulseTime = 0;
+  unsigned long ledPulseTime = 0;
   unsigned long lastUSBClockTime = 0;
   unsigned long lastDINClockTime = 0;
   unsigned long lastSyncInTime = 0;
