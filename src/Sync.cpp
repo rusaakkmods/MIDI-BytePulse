@@ -36,8 +36,18 @@ void Sync::begin() {
 }
 
 void Sync::handleSyncInPulse() {
+  static unsigned long lastInterruptTime = 0;
+  unsigned long interruptTime = millis();
+  
+  // Debounce: ignore interrupts within 5ms of previous
+  if (interruptTime - lastInterruptTime < 5) {
+    return;
+  }
+  
+  lastInterruptTime = interruptTime;
+  
   if (!isSyncInConnected()) return;
-  syncInPulseTime = millis();
+  syncInPulseTime = interruptTime;
 }
 
 void Sync::handleClock(ClockSource source) {
@@ -199,6 +209,11 @@ void Sync::update() {
       ppqnCounter = 0;
       lastSyncInTime = pulseTime;
       
+      // Send MIDI Start to USB and DIN
+      MidiUSB.sendMIDI({0x0F, 0xFA, 0, 0});  // Start
+      MidiUSB.flush();
+      MIDI_DIN.sendRealTime(midi::Start);
+      
       if (onClockStart) {
         onClockStart();
       }
@@ -247,6 +262,11 @@ void Sync::update() {
         isPlaying = false;
         ppqnCounter = 0;
         
+        // Send MIDI Stop to USB and DIN
+        MidiUSB.sendMIDI({0x0F, 0xFC, 0, 0});  // Stop
+        MidiUSB.flush();
+        MIDI_DIN.sendRealTime(midi::Stop);
+        
         if (onClockStop) {
           onClockStop();
         }
@@ -258,6 +278,11 @@ void Sync::update() {
         activeSource = CLOCK_SOURCE_NONE;
         isPlaying = false;
         ppqnCounter = 0;
+        
+        // Send MIDI Stop to USB and DIN
+        MidiUSB.sendMIDI({0x0F, 0xFC, 0, 0});  // Stop
+        MidiUSB.flush();
+        MIDI_DIN.sendRealTime(midi::Stop);
         
         if (onClockStop) {
           onClockStop();
