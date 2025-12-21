@@ -53,42 +53,45 @@ void Sync::handleSyncInPulse() {
 void Sync::handleClock(ClockSource source) {
   unsigned long now = millis();
   
+  // Priority: SYNC_IN > USB > DIN
+  // Reject lower priority sources completely when higher priority is active
   if (source == CLOCK_SOURCE_DIN && (activeSource == CLOCK_SOURCE_USB || activeSource == CLOCK_SOURCE_SYNC_IN)) {
-    return;
+    return;  // Ignore DIN if USB or SYNC_IN is active
   }
   if (source == CLOCK_SOURCE_USB && activeSource == CLOCK_SOURCE_SYNC_IN) {
-    return;
+    return;  // Ignore USB if SYNC_IN is active
   }
   
-  if (source == CLOCK_SOURCE_USB && usbIsPlaying) {
-    lastUSBClockTime = now;
-    activeSource = CLOCK_SOURCE_USB;
-  }
-  
-  if (source == CLOCK_SOURCE_DIN && activeSource != CLOCK_SOURCE_USB) {
-    lastDINClockTime = now;
-    activeSource = CLOCK_SOURCE_DIN;
-  }
-  
+  // Handle first clock from each source
   if (source == CLOCK_SOURCE_USB && !usbIsPlaying) {
     usbIsPlaying = true;
     isPlaying = true;
     activeSource = CLOCK_SOURCE_USB;
     ppqnCounter = 0;
-    lastUSBClockTime = millis();
+    lastUSBClockTime = now;
   }
   
-  if (source == CLOCK_SOURCE_DIN && activeSource == CLOCK_SOURCE_USB) {
-    return;
+  if (source == CLOCK_SOURCE_DIN && !isPlaying) {
+    isPlaying = true;
+    activeSource = CLOCK_SOURCE_DIN;
+    ppqnCounter = 0;
+    lastDINClockTime = now;
   }
   
-  if (source == CLOCK_SOURCE_DIN && activeSource != CLOCK_SOURCE_USB) {
-    if (!isPlaying) {
-      isPlaying = true;
-      activeSource = CLOCK_SOURCE_DIN;
-      ppqnCounter = 0;
-      lastDINClockTime = millis();
-    }
+  // USB can override DIN after it's started
+  if (source == CLOCK_SOURCE_USB && activeSource == CLOCK_SOURCE_DIN) {
+    activeSource = CLOCK_SOURCE_USB;
+    usbIsPlaying = true;
+    ppqnCounter = 0;  // Reset counter on source switch
+    lastUSBClockTime = now;
+  }
+  
+  // Update last clock time for active source
+  if (source == CLOCK_SOURCE_USB && activeSource == CLOCK_SOURCE_USB) {
+    lastUSBClockTime = now;
+  }
+  if (source == CLOCK_SOURCE_DIN && activeSource == CLOCK_SOURCE_DIN) {
+    lastDINClockTime = now;
   }
   
   if (!isPlaying) return;

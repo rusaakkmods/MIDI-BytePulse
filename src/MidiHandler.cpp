@@ -165,13 +165,11 @@ void MIDIHandler::handleSystemExclusive(byte* data, unsigned size) {
 
 void MIDIHandler::handleClock() {
   midiEventPacket_t event = {0x0F, 0xF8, 0, 0};
-  MidiUSB.sendMIDI(event);
+  MidiUSB.sendMIDI(event);  // Forward to USB
   
-  MIDI_DIN.sendRealTime(midi::Clock);
-  
-  static uint8_t clockCounter = 0;
-  if (++clockCounter >= 6) {
-    clockCounter = 0;
+  // Only forward DIN clock to MIDI OUT if DIN is the active source
+  if (sync && sync->getActiveSource() == CLOCK_SOURCE_DIN) {
+    MIDI_DIN.sendRealTime(midi::Clock);
   }
   
   if (sync) {
@@ -183,7 +181,10 @@ void MIDIHandler::handleStart() {
   midiEventPacket_t event = {0x0F, 0xFA, 0, 0};
   MidiUSB.sendMIDI(event);
   
-  MIDI_DIN.sendRealTime(midi::Start);
+  // Only forward to MIDI OUT if DIN is the active source
+  if (sync && sync->getActiveSource() == CLOCK_SOURCE_DIN) {
+    MIDI_DIN.sendRealTime(midi::Start);
+  }
   
   if (sync) {
     sync->handleStart(CLOCK_SOURCE_DIN);
@@ -194,7 +195,10 @@ void MIDIHandler::handleContinue() {
   midiEventPacket_t event = {0x0F, 0xFB, 0, 0};
   MidiUSB.sendMIDI(event);
   
-  MIDI_DIN.sendRealTime(midi::Continue);
+  // Only forward to MIDI OUT if DIN is the active source
+  if (sync && sync->getActiveSource() == CLOCK_SOURCE_DIN) {
+    MIDI_DIN.sendRealTime(midi::Continue);
+  }
   
   if (sync) {
     sync->handleStart(CLOCK_SOURCE_DIN);
@@ -205,7 +209,10 @@ void MIDIHandler::handleStop() {
   midiEventPacket_t event = {0x0F, 0xFC, 0, 0};
   MidiUSB.sendMIDI(event);
   
-  MIDI_DIN.sendRealTime(midi::Stop);
+  // Only forward to MIDI OUT if DIN is the active source
+  if (sync && sync->getActiveSource() == CLOCK_SOURCE_DIN) {
+    MIDI_DIN.sendRealTime(midi::Stop);
+  }
   
   if (sync) {
     sync->handleStop(CLOCK_SOURCE_DIN);

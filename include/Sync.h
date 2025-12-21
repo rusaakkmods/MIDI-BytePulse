@@ -28,6 +28,7 @@ public:
   void update();
   bool isBeatActive() const { return ledState; }
   bool isClockRunning() const { return isPlaying; }
+  ClockSource getActiveSource() const { return activeSource; }
   
   SyncInRate readSyncInRate();     // Read rotary switch position
   uint8_t getSyncInMultiplier();   // Get PPQN multiplier for SYNC_IN → MIDI
