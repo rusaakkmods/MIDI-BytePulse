@@ -136,6 +136,7 @@ void Sync::handleStart(ClockSource source) {
     isPlaying = true;
     ppqnCounter = 0;
     
+    // USB is master: forward Start to MIDI OUT
     MIDI_DIN.sendRealTime(midi::Start);
     
     if (onClockStart) {
@@ -146,7 +147,7 @@ void Sync::handleStart(ClockSource source) {
   }
   
   if (source == CLOCK_SOURCE_DIN && usbIsPlaying) {
-    return;
+    return;  // DIN blocked by USB
   }
   
   if (source == CLOCK_SOURCE_DIN && !usbIsPlaying) {
@@ -154,7 +155,7 @@ void Sync::handleStart(ClockSource source) {
     isPlaying = true;
     ppqnCounter = 0;
     
-    MIDI_DIN.sendRealTime(midi::Start);
+    // DIN is master: MidiHandler already forwarded to both USB and MIDI OUT
     
     if (onClockStart) {
       onClockStart();
@@ -169,6 +170,7 @@ void Sync::handleStop(ClockSource source) {
     activeSource = CLOCK_SOURCE_NONE;
     ppqnCounter = 0;
     
+    // USB is master: forward Stop to MIDI OUT
     MIDI_DIN.sendRealTime(midi::Stop);
     
     if (onClockStop) {
@@ -179,7 +181,7 @@ void Sync::handleStop(ClockSource source) {
   }
   
   if (source == CLOCK_SOURCE_DIN && usbIsPlaying) {
-    return;
+    return;  // DIN blocked by USB
   }
   
   if (source == CLOCK_SOURCE_DIN && !usbIsPlaying) {
@@ -194,7 +196,7 @@ void Sync::handleStop(ClockSource source) {
     displayClkState = false;
     ledState = false;
     
-    MIDI_DIN.sendRealTime(midi::Stop);
+    // DIN is master: MidiHandler already forwarded to both USB and MIDI OUT
     
     if (onClockStop) {
       onClockStop();
@@ -217,10 +219,7 @@ void Sync::update() {
       ppqnCounter = 0;
       lastSyncInTime = pulseTime;
       
-      // Send MIDI Start to USB and DIN
-      MidiUSB.sendMIDI({0x0F, 0xFA, 0, 0});  // Start
-      MidiUSB.flush();
-      MIDI_DIN.sendRealTime(midi::Start);
+      // SYNC_IN does NOT send Start message - only clocks
       
       if (onClockStart) {
         onClockStart();
@@ -270,10 +269,7 @@ void Sync::update() {
         isPlaying = false;
         ppqnCounter = 0;
         
-        // Send MIDI Stop to USB and DIN
-        MidiUSB.sendMIDI({0x0F, 0xFC, 0, 0});  // Stop
-        MidiUSB.flush();
-        MIDI_DIN.sendRealTime(midi::Stop);
+        // SYNC_IN does NOT send Stop message - only stops clocks
         
         if (onClockStop) {
           onClockStop();
@@ -287,10 +283,7 @@ void Sync::update() {
         isPlaying = false;
         ppqnCounter = 0;
         
-        // Send MIDI Stop to USB and DIN
-        MidiUSB.sendMIDI({0x0F, 0xFC, 0, 0});  // Stop
-        MidiUSB.flush();
-        MIDI_DIN.sendRealTime(midi::Stop);
+        // SYNC_IN does NOT send Stop message - only stops clocks;
         
         if (onClockStop) {
           onClockStop();
@@ -301,11 +294,24 @@ void Sync::update() {
   
   checkUSBTimeout();
   
-  if (currentMillis - lastSwitchReadTime >= 100) {
+  // Debounced switch reading - require 3 consecutive stable readings
+  if (currentMillis - lastSwitchReadTime >= 50) {
     SyncInRate newRate = readSyncInRate();
-    if (newRate != syncRate) {
-      syncRate = newRate;
+    
+    static SyncInRate pendingRate = SYNC_IN_2_PPQN;
+    static uint8_t stableCount = 0;
+    
+    if (newRate == pendingRate) {
+      stableCount++;
+      if (stableCount >= 3 && newRate != syncRate) {
+        syncRate = newRate;
+        stableCount = 0;
+      }
+    } else {
+      pendingRate = newRate;
+      stableCount = 1;
     }
+    
     lastSwitchReadTime = currentMillis;
   }
   
@@ -346,12 +352,55 @@ bool Sync::isSyncInConnected() {
 }
 
 SyncInRate Sync::readSyncInRate() {
-  if (digitalRead(SYNC_RATE_PIN_1) == LOW) return SYNC_IN_1_PPQN;
-  if (digitalRead(SYNC_RATE_PIN_2) == LOW) return SYNC_IN_2_PPQN;
-  if (digitalRead(SYNC_RATE_PIN_3) == LOW) return SYNC_IN_4_PPQN;
-  if (digitalRead(SYNC_RATE_PIN_4) == LOW) return SYNC_IN_6_PPQN;
-  if (digitalRead(SYNC_RATE_PIN_5) == LOW) return SYNC_IN_24_PPQN;
-  return SYNC_IN_2_PPQN;
+  // Read all pins
+  bool pin1 = (digitalRead(SYNC_RATE_PIN_1) == LOW);
+  bool pin2 = (digitalRead(SYNC_RATE_PIN_2) == LOW);
+  bool pin3 = (digitalRead(SYNC_RATE_PIN_3) == LOW);
+  bool pin4 = (digitalRead(SYNC_RATE_PIN_4) == LOW);
+  bool pin5 = (digitalRead(SYNC_RATE_PIN_5) == LOW);
+  
+  // Count how many pins are active
+  uint8_t activeCount = pin1 + pin2 + pin3 + pin4 + pin5;
+  
+  #if SERIAL_DEBUG
+  static unsigned long lastDebugTime = 0;
+  if (millis() - lastDebugTime > 2000) {
+    DEBUG_PRINT("Switch: P1=");
+    DEBUG_PRINT(pin1);
+    DEBUG_PRINT(" P2=");
+    DEBUG_PRINT(pin2);
+    DEBUG_PRINT(" P3=");
+    DEBUG_PRINT(pin3);
+    DEBUG_PRINT(" P4=");
+    DEBUG_PRINT(pin4);
+    DEBUG_PRINT(" P5=");
+    DEBUG_PRINT(pin5);
+    DEBUG_PRINT(" Active=");
+    DEBUG_PRINT(activeCount);
+    DEBUG_PRINT(" Rate=");
+    DEBUG_PRINTLN((int)syncRate);
+    lastDebugTime = millis();
+  }
+  #endif
+  
+  // If no pins active, keep current setting
+  if (activeCount == 0) {
+    return syncRate;
+  }
+  
+  // Special case: If P1 and P2 are both active (hardware issue), treat as position 1
+  if (pin1 && pin2 && !pin3 && !pin4 && !pin5) {
+    return SYNC_IN_1_PPQN;
+  }
+  
+  // Priority order: 5, 4, 3, 2, 1 (highest value wins if multiple active)
+  if (pin5) return SYNC_IN_24_PPQN;
+  if (pin4) return SYNC_IN_6_PPQN;
+  if (pin3) return SYNC_IN_4_PPQN;
+  if (pin2) return SYNC_IN_2_PPQN;
+  if (pin1) return SYNC_IN_1_PPQN;
+  
+  return syncRate;
 }
 
 uint8_t Sync::getSyncInMultiplier() {

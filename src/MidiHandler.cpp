@@ -165,10 +165,10 @@ void MIDIHandler::handleSystemExclusive(byte* data, unsigned size) {
 
 void MIDIHandler::handleClock() {
   midiEventPacket_t event = {0x0F, 0xF8, 0, 0};
-  MidiUSB.sendMIDI(event);  // Forward to USB
+  MidiUSB.sendMIDI(event);  // Always forward to USB
   
-  // Only forward DIN clock to MIDI OUT if DIN is the active source
-  if (sync && sync->getActiveSource() == CLOCK_SOURCE_DIN) {
+  // Forward to MIDI OUT only if DIN is allowed (not blocked by USB or SYNC_IN)
+  if (sync && !sync->isUSBPlaying() && !sync->isSyncInPlaying()) {
     MIDI_DIN.sendRealTime(midi::Clock);
   }
   
@@ -179,10 +179,10 @@ void MIDIHandler::handleClock() {
 
 void MIDIHandler::handleStart() {
   midiEventPacket_t event = {0x0F, 0xFA, 0, 0};
-  MidiUSB.sendMIDI(event);
+  MidiUSB.sendMIDI(event);  // Always forward to USB
   
-  // Only forward to MIDI OUT if DIN is the active source
-  if (sync && sync->getActiveSource() == CLOCK_SOURCE_DIN) {
+  // Forward to MIDI OUT only if DIN is allowed (not blocked by USB or SYNC_IN)
+  if (sync && !sync->isUSBPlaying() && !sync->isSyncInPlaying()) {
     MIDI_DIN.sendRealTime(midi::Start);
   }
   
@@ -193,10 +193,10 @@ void MIDIHandler::handleStart() {
 
 void MIDIHandler::handleContinue() {
   midiEventPacket_t event = {0x0F, 0xFB, 0, 0};
-  MidiUSB.sendMIDI(event);
+  MidiUSB.sendMIDI(event);  // Always forward to USB
   
-  // Only forward to MIDI OUT if DIN is the active source
-  if (sync && sync->getActiveSource() == CLOCK_SOURCE_DIN) {
+  // Forward to MIDI OUT only if DIN is allowed (not blocked by USB or SYNC_IN)
+  if (sync && !sync->isUSBPlaying() && !sync->isSyncInPlaying()) {
     MIDI_DIN.sendRealTime(midi::Continue);
   }
   
@@ -207,10 +207,10 @@ void MIDIHandler::handleContinue() {
 
 void MIDIHandler::handleStop() {
   midiEventPacket_t event = {0x0F, 0xFC, 0, 0};
-  MidiUSB.sendMIDI(event);
+  MidiUSB.sendMIDI(event);  // Always forward to USB
   
-  // Only forward to MIDI OUT if DIN is the active source
-  if (sync && sync->getActiveSource() == CLOCK_SOURCE_DIN) {
+  // Forward to MIDI OUT only if DIN is allowed (not blocked by USB or SYNC_IN)
+  if (sync && !sync->isUSBPlaying() && !sync->isSyncInPlaying()) {
     MIDI_DIN.sendRealTime(midi::Stop);
   }
   
