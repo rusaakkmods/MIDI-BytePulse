@@ -93,6 +93,11 @@ void Sync::handleClock(ClockSource source) {
   
   if (!isPlaying) return;
   
+  // Forward clock to MIDI DIN OUT (only for USB/SYNC_IN, DIN already forwards itself)
+  if (source == CLOCK_SOURCE_USB || source == CLOCK_SOURCE_SYNC_IN) {
+    MIDI_DIN.sendRealTime(midi::Clock);
+  }
+  
   if (ppqnCounter == 0) {
     digitalWrite(DISPLAY_CLK_PIN, HIGH);
     displayClkState = true;
